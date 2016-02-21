@@ -1,0 +1,34 @@
+#!/bin/bash
+
+service docker stop
+
+# NOTE: prefer the first available spare disk
+dev=`lsblk | grep disk | sed -n '2p' | awk '{print $1}'`
+host_bind="-H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375"
+storage_opts=
+
+if [ -x /sbin/pvcreate ] && [ ! -z ${dev} ]; then
+    [ -d /var/lib/docker ] && rm -rf /var/lib/docker
+    pvcreate /dev/${dev}
+    vgcreate vg-docker /dev/${dev}
+    lvcreate -l 90%FREE -n data vg-docker
+    lvcreate -l 10%FREE -n metadata vg-docker
+    # Setup DOCKER_OPTS
+    storage_opts="--storage-driver=devicemapper --storage-opt dm.datadev=/dev/vg-docker/data --storage-opt dm.metadatadev=/dev/vg-docker/metadata"
+fi
+truncate -s0 /etc/default/docker
+echo DOCKER_OPTS="\"${host_bind} ${storage_opts}\"" >>/etc/default/docker
+
+service docker start
+
+# FIXME: better way to confirm docker daemon started
+while ! docker info &>/dev/null; do sleep 3; done
+
+docker network create --driver bridge isolated_nw
+
+docker create --restart=always --name logrotate \
+    -v /var/lib/docker/containers:/var/lib/docker/containers:rw \
+    tutum/logrotate
+
+# Configured system reboot now
+shutdown -r now

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+swapoff -a -v
+# Setup swap space
+fallocate -l 2G /mnt/swapfile
+chmod 600 /mnt/swapfile
+mkswap /mnt/swapfile
+grep -q swap /etc/fstab || echo "/mnt/swapfile   none    swap    sw    0   0" >>/etc/fstab
+
