@@ -1,4 +1,4 @@
-package remote
+package ssh
 
 import (
 	"github.com/codegangsta/cli"

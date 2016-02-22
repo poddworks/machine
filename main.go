@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/jeffjen/machine/driver/aws"
-	"github.com/jeffjen/machine/remote"
+	"github.com/jeffjen/machine/lib/ssh"
 
 	"github.com/codegangsta/cli"
 
@@ -19,7 +19,7 @@ func main() {
 	}
 	app.Commands = []cli.Command{
 		aws.NewCommand(),
-		remote.NewCommand(),
+		ssh.NewCommand(),
 	}
 	app.Before = nil
 	app.Action = nil
