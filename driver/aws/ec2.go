@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 )
 
 func ami_getInfo() (ami *ec2.Image) {
@@ -78,28 +79,69 @@ func ec2_findSecurityGroup(profile *VPCProfile, name ...string) (sgId []*string)
 	return
 }
 
+func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsInput {
+	tagparam := &ec2.CreateTagsInput{
+		Tags:      make([]*ec2.Tag, 0, len(tags)),
+		Resources: make([]*string, 0, len(instances)),
+	}
+	for _, inst := range instances {
+		fmt.Println(*inst.InstanceId)
+		tagparam.Resources = append(tagparam.Resources, inst.InstanceId)
+	}
+	for _, tag := range tags {
+		var parts = strings.SplitN(tag, "=", 2)
+		tagparam.Tags = append(tagparam.Tags, &ec2.Tag{
+			Key:   aws.String(parts[0]),
+			Value: aws.String(parts[1]),
+		})
+	}
+	return tagparam
+}
+
 func newEC2Inst(c *cli.Context, profile *Profile) {
 	var (
-		instType         = c.String("type")
-		num2Launch       = c.Int("count")
-		isPrivate        = c.Bool("private")
-		networkACLGroups = c.StringSlice("group")
+		amiId            = c.String("instance-ami-id")
+		num2Launch       = c.Int("instance-count")
+		iamProfile       = c.String("instance-profile")
+		instTags         = c.StringSlice("instance-tag")
+		instType         = c.String("instance-type")
+		isPrivate        = c.Bool("subnet-private")
+		subnetId         = c.String("subnet-id")
+		networkACLGroups = c.StringSlice("security-group")
 	)
 	ec2param := &ec2.RunInstancesInput{
-		ImageId:          profile.Ami.Id,
 		InstanceType:     aws.String(instType),
 		MaxCount:         aws.Int64(int64(num2Launch)),
 		MinCount:         aws.Int64(1),
 		SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
-		SubnetId:         ec2_getSubnet(&profile.VPC, !isPrivate),
 	}
-	if resp, err := svc.RunInstances(ec2param); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
-		os.Exit(1)
+	if amiId != "" {
+		ec2param.ImageId = aws.String(amiId)
 	} else {
-		for _, inst := range resp.Instances {
-			fmt.Println(*inst.InstanceId)
+		ec2param.ImageId = profile.Ami.Id
+	}
+	if strings.HasPrefix(iamProfile, "arn:aws:iam") {
+		ec2param.IamInstanceProfile = &ec2.IamInstanceProfileSpecification{
+			Arn: aws.String(iamProfile),
+		}
+	} else if iamProfile != "" {
+		ec2param.IamInstanceProfile = &ec2.IamInstanceProfileSpecification{
+			Name: aws.String(iamProfile),
 		}
 	}
-	return
+	if subnetId != "" {
+		ec2param.SubnetId = aws.String(subnetId)
+	} else {
+		ec2param.SubnetId = ec2_getSubnet(&profile.VPC, !isPrivate)
+	}
+	resp, err := svc.RunInstances(ec2param)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	_, err = svc.CreateTags(ec2_tagInstance(instTags, resp.Instances))
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 }

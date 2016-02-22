@@ -72,11 +72,15 @@ func NewCommand() cli.Command {
 				Name:  "create",
 				Usage: "create a new EC2 instance",
 				Flags: []cli.Flag{
-					cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
-					cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
-					cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
-					cli.BoolFlag{Name: "private", Usage: "Launch EC2 instance to internal subnet"},
-					cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
+					cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
+					cli.StringFlag{Name: "instance-ami-id", Usage: "EC2 instance AMI ID"},
+					cli.IntFlag{Name: "instance-count", Value: 1, Usage: "EC2 instances to launch in this request"},
+					cli.StringFlag{Name: "instance-profile", Usage: "EC2 IAM Role to apply"},
+					cli.StringSliceFlag{Name: "instance-tag", Usage: "EC2 instance tag in the form field=value"},
+					cli.StringFlag{Name: "instance-type", Value: "t2.micro", Usage: "EC2 instance type"},
+					cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
+					cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
+					cli.StringSliceFlag{Name: "security-group", Usage: "Network security group for user"},
 				},
 				Action: func(c *cli.Context) {
 					var profile = make(AWSProfile)
@@ -86,13 +90,12 @@ func NewCommand() cli.Command {
 						fmt.Println("Please run sync in the region of choice")
 						os.Exit(1)
 					}
-					var name = c.String("name")
-					p, ok := region[name]
-					if !ok {
-						fmt.Println("Unable to find VPC profile through name")
+					if p, ok := region[c.String("profile")]; !ok {
+						fmt.Println("Unable to find matching VPC profile")
 						os.Exit(1)
+					} else {
+						newEC2Inst(c, p)
 					}
-					newEC2Inst(c, p)
 				},
 			},
 		},
