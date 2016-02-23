@@ -3,6 +3,7 @@ package cert
 import (
 	"github.com/codegangsta/cli"
 
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -10,31 +11,59 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	path "path/filepath"
 	"strings"
 	"time"
 )
 
+const (
+	DEFAULT_CERT_PATH = "~/.machine"
+
+	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
+)
+
 func NewX509Certificate(org string) (*x509.Certificate, error) {
-	notBefore := time.Now()
+	now := time.Now()
+	notBefore := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute()-5, 0, 0, time.Local)
 	notAfter := notBefore.Add(time.Hour * 24 * 1080)
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
 		return nil, err
 	} else {
-		keyUsage := x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement
 		return &x509.Certificate{
 			SerialNumber:          serialNumber,
 			Subject:               pkix.Name{Organization: []string{org}},
 			NotBefore:             notBefore,
 			NotAfter:              notAfter,
-			KeyUsage:              keyUsage,
+			KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
 			BasicConstraintsValid: true,
 		}, nil
 	}
+}
+
+func LoadCACert(certpath string) (cert tls.Certificate, err error) {
+	caFile := path.Join(certpath, "ca.pem")
+	caKeyFile := path.Join(certpath, "ca-key.pem")
+	cert, err = tls.LoadX509KeyPair(caFile, caKeyFile)
+	return
+}
+
+func LoadCAPEMBlock(certpath string) (ca []byte, err error) {
+	var buf = new(bytes.Buffer)
+	caFile := path.Join(certpath, "ca.pem")
+	file, err := os.Open(caFile)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	io.Copy(buf, file)
+	return buf.Bytes(), nil
 }
 
 func WriteCertificate(output string, data []byte) error {
@@ -50,7 +79,7 @@ func WriteCertificate(output string, data []byte) error {
 }
 
 func WriteKey(output string, priv *rsa.PrivateKey) error {
-	key, err := os.Create(output)
+	key, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -61,14 +90,16 @@ func WriteKey(output string, priv *rsa.PrivateKey) error {
 	})
 }
 
-func gencacert(c *cli.Context, certpath string) {
-	tmpl, err := NewX509Certificate(c.String("organization"))
+func gencacert(c *cli.Context, org, certpath string) {
+	tmpl, err := NewX509Certificate(org)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 	tmpl.IsCA = true
 	tmpl.KeyUsage |= x509.KeyUsageCertSign
+	tmpl.KeyUsage |= x509.KeyUsageKeyEncipherment
+	tmpl.KeyUsage |= x509.KeyUsageKeyAgreement
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -95,8 +126,8 @@ func gencacert(c *cli.Context, certpath string) {
 	}
 }
 
-func gencert(c *cli.Context, certpath string) {
-	tmpl, err := NewX509Certificate(c.String("organization"))
+func gencert(c *cli.Context, org, certpath string) {
+	tmpl, err := NewX509Certificate(org)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -104,8 +135,12 @@ func gencert(c *cli.Context, certpath string) {
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
 
-	caFile, caKeyFile := path.Join(certpath, "ca.pem"), path.Join(certpath, "ca-key.pem")
-	tlsCert, err := tls.LoadX509KeyPair(caFile, caKeyFile)
+	caCert, err := LoadCACert(certpath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -117,13 +152,7 @@ func gencert(c *cli.Context, certpath string) {
 		os.Exit(1)
 	}
 
-	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -142,7 +171,61 @@ func gencert(c *cli.Context, certpath string) {
 	}
 }
 
-func parseCertPath(c *cli.Context) (certpath string, err error) {
+func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string) (cert, key []byte, err error) {
+	var (
+		keyBuf  = new(bytes.Buffer)
+		certBuf = new(bytes.Buffer)
+	)
+
+	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth}
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+		} else {
+			tmpl.DNSNames = append(tmpl.DNSNames, h)
+		}
+	}
+
+	caCert, err := LoadCACert(certpath)
+	if err != nil {
+		return // Unable to load CA Certificate
+	}
+	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
+	if err != nil {
+		return // Unable to Parse CA Certificate
+	}
+
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return // Unable to generate private key for certificate
+	}
+	err = pem.Encode(keyBuf, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+	if err != nil {
+		return // Unable to encode private key to PEM
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
+	if err != nil {
+		return // Unable to create Certificate
+	}
+	err = pem.Encode(certBuf, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	})
+	if err != nil {
+		return // Unable to encode Certificate to PEM
+	}
+
+	// retrieve encoded PEM bytes for Certificate and Key
+	cert, key = certBuf.Bytes(), keyBuf.Bytes()
+	return
+}
+
+func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
+	org = c.Parent().String("organization")
 	certpath = c.Parent().String("certpath")
 	certpath = strings.Replace(certpath, "~", os.Getenv("HOME"), 1)
 	certpath, err = path.Abs(certpath)
@@ -158,28 +241,63 @@ func NewCommand() cli.Command {
 		Name:  "tls",
 		Usage: "Utility for generating certificate for TLS",
 		Flags: []cli.Flag{
-			cli.StringFlag{Name: "certpath", Value: "~/.machine", Usage: "Certificate path"},
+			cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
+			cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
 		},
 		Subcommands: []cli.Command{
 			{
 				Name:  "bootstrap",
 				Usage: "Generate certificate for TLS",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "organization", Value: "podd.org", Usage: "Organization for CA"},
-				},
 				Action: func(c *cli.Context) {
-					certpath, err := parseCertPath(c)
+					org, certpath, err := parseCertArgs(c)
 					if err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					gencacert(c, certpath)
-					gencert(c, certpath)
+					gencacert(c, org, certpath)
+					gencert(c, org, certpath)
 				},
 			},
 			{
-				Name:  "install",
-				Usage: "Install server certificate",
+				Name:  "generate",
+				Usage: "Generate server certificate",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
+					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
+				},
+				Action: func(c *cli.Context) {
+					var hosts = make([]string, 0)
+					if hostname := c.String("host"); hostname == "" {
+						fmt.Println("You must provide hostname to create Certificate for")
+						os.Exit(1)
+					} else {
+						hosts = append(hosts, hostname)
+					}
+					hosts = append(hosts, c.StringSlice("altname")...)
+					org, certpath, err := parseCertArgs(c)
+					if err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					tmpl, err := NewX509Certificate(org)
+					if err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					cert, key, err := GenerateCertificate(certpath, tmpl, hosts)
+					if err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					if err = ioutil.WriteFile("server-cert.pem", cert, 0644); err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					if err = ioutil.WriteFile("server-key.pem", key, 0600); err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+				},
 			},
 		},
 	}
