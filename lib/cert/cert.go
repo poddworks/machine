@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"os/user"
 	path "path/filepath"
 	"strings"
 	"time"
@@ -225,9 +226,13 @@ func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string
 }
 
 func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
+	usr, err := user.Current()
+	if err != nil {
+		return // Unable to determine user
+	}
 	org = c.Parent().String("organization")
 	certpath = c.Parent().String("certpath")
-	certpath = strings.Replace(certpath, "~", os.Getenv("HOME"), 1)
+	certpath = strings.Replace(certpath, "~", usr.HomeDir, 1)
 	certpath, err = path.Abs(certpath)
 	if err != nil {
 		return
