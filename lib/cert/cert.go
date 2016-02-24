@@ -1,6 +1,8 @@
 package cert
 
 import (
+	"github.com/jeffjen/machine/lib/ssh"
+
 	"github.com/codegangsta/cli"
 
 	"bytes"
@@ -11,7 +13,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math/big"
 	"net"
@@ -53,18 +54,6 @@ func LoadCACert(certpath string) (cert tls.Certificate, err error) {
 	caKeyFile := path.Join(certpath, "ca-key.pem")
 	cert, err = tls.LoadX509KeyPair(caFile, caKeyFile)
 	return
-}
-
-func LoadCAPEMBlock(certpath string) (ca []byte, err error) {
-	var buf = new(bytes.Buffer)
-	caFile := path.Join(certpath, "ca.pem")
-	file, err := os.Open(caFile)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	io.Copy(buf, file)
-	return buf.Bytes(), nil
 }
 
 func WriteCertificate(output string, data []byte) error {
@@ -241,6 +230,38 @@ func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
 	return
 }
 
+func generateServerCertificate(c *cli.Context) (ca, cert, key []byte) {
+	var hosts = make([]string, 0)
+	if hostname := c.String("host"); hostname == "" {
+		fmt.Println("You must provide hostname to create Certificate for")
+		os.Exit(1)
+	} else {
+		hosts = append(hosts, hostname)
+	}
+	hosts = append(hosts, c.StringSlice("altname")...)
+	org, certpath, err := parseCertArgs(c)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	tmpl, err := NewX509Certificate(org)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	cert, key, err = GenerateCertificate(certpath, tmpl, hosts)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	ca, err = ioutil.ReadFile(path.Join(certpath, "ca.pem"))
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	return
+}
+
 func NewCommand() cli.Command {
 	return cli.Command{
 		Name:  "tls",
@@ -265,40 +286,71 @@ func NewCommand() cli.Command {
 			},
 			{
 				Name:  "generate",
-				Usage: "Generate server certificate",
+				Usage: "Generate server certificate with self-signed CA",
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
 				Action: func(c *cli.Context) {
-					var hosts = make([]string, 0)
-					if hostname := c.String("host"); hostname == "" {
-						fmt.Println("You must provide hostname to create Certificate for")
-						os.Exit(1)
-					} else {
-						hosts = append(hosts, hostname)
-					}
-					hosts = append(hosts, c.StringSlice("altname")...)
-					org, certpath, err := parseCertArgs(c)
-					if err != nil {
+					_, cert, key := generateServerCertificate(c)
+					if err := ioutil.WriteFile("server-cert.pem", cert, 0644); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					tmpl, err := NewX509Certificate(org)
-					if err != nil {
+					if err := ioutil.WriteFile("server-key.pem", key, 0600); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					cert, key, err := GenerateCertificate(certpath, tmpl, hosts)
-					if err != nil {
+				},
+			},
+			{
+				Name:  "docker-engine-cert",
+				Usage: "Generate and install certificate for Docker Enginea",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
+					cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
+					cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
+					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
+				},
+				Action: func(c *cli.Context) {
+					ca, cert, key := generateServerCertificate(c)
+					var (
+						user    = c.String("user")
+						privKey = c.String("cert")
+						host    = c.String("host")
+
+						caBuf   = bytes.NewBuffer(ca)
+						certBuf = bytes.NewBuffer(cert)
+						keyBuf  = bytes.NewBuffer(key)
+
+						sshctx = ssh.New(ssh.Config{
+							User:   user,
+							Server: host,
+							Key:    privKey,
+							Port:   "22",
+						})
+					)
+					if err := sshctx.Copy(certBuf, int64(certBuf.Len()), "/etc/docker/server-cert.pem"); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err = ioutil.WriteFile("server-cert.pem", cert, 0644); err != nil {
+					if err := sshctx.Copy(keyBuf, int64(keyBuf.Len()), "/etc/docker/server-key.pem"); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err = ioutil.WriteFile("server-key.pem", key, 0600); err != nil {
+					if err := sshctx.Copy(caBuf, int64(caBuf.Len()), "/etc/docker/ca.pem"); err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					if err := sshctx.ConfigureDockerTLS(); err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					if err := sshctx.StopDocker(); err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					}
+					if err := sshctx.StartDocker(); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}

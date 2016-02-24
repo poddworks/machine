@@ -46,6 +46,7 @@ type Commander interface {
 	Stream(cmd string) (output <-chan Response, err error)
 
 	// Utility with Docker Engine control
+	ConfigureDockerTLS() error
 	StartDocker() error
 	StopDocker() error
 }
@@ -222,6 +223,15 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 	} else {
 		return output, nil
 	}
+}
+
+func (sshCmd *SSHCommander) ConfigureDockerTLS() error {
+	session, err := sshCmd.connect()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	return session.Run(`echo 'DOCKER_OPTS="-H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 --tlsverify --tlscacert /etc/docker/ca.pem --tlscert /etc/docker/server-cert.pem --tlskey /etc/docker/server-key.pem "' | sudo tee /etc/default/docker`)
 }
 
 func (sshCmd *SSHCommander) StartDocker() error {
