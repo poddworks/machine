@@ -2,20 +2,11 @@ package ssh
 
 import (
 	"github.com/codegangsta/cli"
-	"github.com/hypersleep/easyssh"
 
 	"fmt"
-	"os"
 	"path"
+	"strings"
 )
-
-func enforceOneArg(c *cli.Context) error {
-	if len(c.Args()) != 1 {
-		fmt.Println("Expected one argument in exec")
-		os.Exit(1)
-	}
-	return nil
-}
 
 func parseArgs(c *cli.Context) (user, key string, hosts []string) {
 	return c.String("user"), c.String("cert"), c.StringSlice("host")
@@ -23,13 +14,13 @@ func parseArgs(c *cli.Context) (user, key string, hosts []string) {
 
 func runCmd(c *cli.Context) {
 	var (
-		cmd              = c.Args()[0]
+		cmd              = strings.Join(c.Args(), " ")
 		collect          = make(chan error)
 		user, key, hosts = parseArgs(c.Parent())
 	)
 	for _, host := range hosts {
 		go func(host string) {
-			sshctx := &easyssh.MakeConfig{User: user, Server: host, Key: key, Port: "22"}
+			sshctx := New(Config{User: user, Server: host, Key: key, Port: "22"})
 			resp, err := sshctx.Run(cmd)
 			if err != nil {
 				fmt.Println(err.Error())
@@ -47,34 +38,44 @@ func runCmd(c *cli.Context) {
 
 func runScript(c *cli.Context) {
 	var (
-		script           = c.Args()[0]
+		scripts          = c.Args()
 		collect          = make(chan error)
 		user, key, hosts = parseArgs(c.Parent())
 	)
 	for _, host := range hosts {
 		go func(host string) {
-			sshctx := &easyssh.MakeConfig{User: user, Server: host, Key: key, Port: "22"}
-			if err := sshctx.Scp(script); err != nil {
-				fmt.Println(err.Error())
-				collect <- err
-				return
-			}
-			fmt.Println(host, "- script sent")
-			output, done, err := sshctx.Stream(fmt.Sprintf("cat %s | sudo bash -", path.Base(script)))
-			if err != nil {
-				fmt.Println(err.Error())
-				collect <- err
-				return
-			}
-			for yes := true; yes; {
-				select {
-				case o := <-output:
-					fmt.Println(host, "-", o)
-				case <-done:
-					collect <- nil
-					yes = false
+			sshctx := New(Config{User: user, Server: host, Key: key, Port: "22"})
+			for _, script := range scripts {
+				dst := path.Join("/tmp", path.Base(script))
+				fmt.Println(host, "- sending script", script, "->", dst)
+				if err := sshctx.CopyFile(script, dst); err != nil {
+					fmt.Println(err.Error())
+					collect <- err
+					return
+				}
+				fmt.Println(host, "- script sent")
+				respStream, err := sshctx.Stream(fmt.Sprintf("sudo cat %s | sudo bash -", dst))
+				if err != nil {
+					fmt.Println(err.Error())
+					collect <- err
+					return
+				}
+				var text string
+				for output := range respStream {
+					text, err = output.Data()
+					if err != nil {
+						fmt.Println(host, "-", err.Error())
+						// steam will end because error state delivers last
+					} else {
+						fmt.Println(host, "-", text)
+					}
+				}
+				if err != nil { // abort execution if script failed
+					collect <- err
+					return
 				}
 			}
+			collect <- nil // mark end of script run
 		}(host)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
@@ -95,13 +96,11 @@ func NewCommand() cli.Command {
 			{
 				Name:   "run",
 				Usage:  "Invoke command from argument",
-				Before: enforceOneArg,
 				Action: runCmd,
 			},
 			{
 				Name:   "script",
 				Usage:  "Invoke script from argument",
-				Before: enforceOneArg,
 				Action: runScript,
 			},
 		},
