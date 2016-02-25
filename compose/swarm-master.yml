@@ -1,0 +1,8 @@
+swarm-master:
+    image: swarm
+    command: "manage -H tcp://0.0.0.0:2376 --tlsverify --tlscacert /conf/ca.pem --tlscert /conf/server-cert.pem -tlskey /conf/server-key.pem ${DISCOVERY_OPTS}"
+    container_name: "swarm-master"
+    volumes:
+        - /etc/docker:/conf:ro
+    ports:
+        - "2376:2376"
