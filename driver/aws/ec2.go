@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 )
 
 var (
@@ -46,7 +47,6 @@ func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsIn
 		Resources: make([]*string, 0, len(instances)),
 	}
 	for _, inst := range instances {
-		fmt.Println(*inst.InstanceId)
 		tagparam.Resources = append(tagparam.Resources, inst.InstanceId)
 	}
 	for _, tag := range tags {
@@ -68,7 +68,6 @@ func ec2_EbsRoot(size int) (mapping *ec2.BlockDeviceMapping) {
 		DeviceName: aws.String("xvda"),
 		Ebs: &ec2.EbsBlockDevice{
 			DeleteOnTermination: aws.Bool(true),
-			Encrypted:           aws.Bool(false),
 			VolumeSize:          aws.Int64(int64(size)),
 			VolumeType:          aws.String(ec2.VolumeTypeGp2),
 		},
@@ -90,7 +89,6 @@ func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
 			DeviceName: aws.String("xvd" + DEVICE_NAME[i]),
 			Ebs: &ec2.EbsBlockDevice{
 				DeleteOnTermination: aws.Bool(true),
-				Encrypted:           aws.Bool(false),
 				VolumeSize:          aws.Int64(int64(volSize)),
 				VolumeType:          aws.String(ec2.VolumeTypeGp2),
 			},
@@ -174,9 +172,42 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 		fmt.Fprint(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	_, err = svc.CreateTags(ec2_tagInstance(instTags, resp.Instances))
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+	if len(instTags) > 0 {
+		_, err = svc.CreateTags(ec2_tagInstance(instTags, resp.Instances))
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
 	}
+	fmt.Println("Launched instances...")
+
+	var wg sync.WaitGroup
+
+	// scheduled worker count
+	wg.Add(len(resp.Instances))
+
+	for _, inst := range resp.Instances {
+		go func(instId *string) {
+			defer wg.Done()
+			fmt.Println(*instId, "- pending")
+			param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
+			if err := svc.WaitUntilInstanceRunning(param); err != nil {
+				fmt.Fprint(os.Stderr, *instId, "-", err.Error())
+				return
+			}
+			resp, err := svc.DescribeInstances(param)
+			if err != nil {
+				fmt.Fprint(os.Stderr, *instId, "-", err.Error())
+				return
+			}
+			for _, rsvp := range resp.Reservations {
+				for _, inst := range rsvp.Instances {
+					fmt.Println(*inst.InstanceId, "-", *inst.PublicIpAddress, "-", *inst.PrivateIpAddress)
+				}
+			}
+		}(inst.InstanceId)
+	}
+
+	// Retrieved all info
+	wg.Wait()
 }
