@@ -78,6 +78,8 @@ func NewCommand() cli.Command {
 					cli.StringFlag{Name: "instance-key", Usage: "EC2 instance SSH KeyPair"},
 					cli.StringFlag{Name: "instance-profile", Usage: "EC2 IAM Role to apply"},
 					cli.StringSliceFlag{Name: "instance-tag", Usage: "EC2 instance tag in the form field=value"},
+					cli.IntFlag{Name: "instance-root-size", Value: 8, Usage: "EC2 root volume size"},
+					cli.IntSliceFlag{Name: "instance-volume-size", Usage: "EC2 EBS volume size"},
 					cli.StringFlag{Name: "instance-type", Value: "t2.micro", Usage: "EC2 instance type"},
 					cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
 					cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
@@ -96,6 +98,34 @@ func NewCommand() cli.Command {
 						os.Exit(1)
 					} else {
 						newEC2Inst(c, p)
+					}
+				},
+			},
+			{
+				Name:  "create-ami",
+				Usage: "Create AMI from specification",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "instance-id", Usage: "EC2 instance ID"},
+					cli.StringFlag{Name: "name", Usage: "EC2 AMI Name"},
+					cli.StringFlag{Name: "desc", Usage: "EC2 AMI Description"},
+				},
+				Action: func(c *cli.Context) {
+					var (
+						instId = c.String("instance-id")
+						name   = c.String("name")
+						desc   = c.String("desc")
+					)
+
+					resp, err := svc.CreateImage(&ec2.CreateImageInput{
+						InstanceId:  aws.String(instId),
+						Name:        aws.String(name),
+						Description: aws.String(desc),
+					})
+					if err != nil {
+						fmt.Println(err.Error())
+						os.Exit(1)
+					} else {
+						fmt.Println(*resp.ImageId)
 					}
 				},
 			},
