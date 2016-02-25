@@ -11,51 +11,6 @@ import (
 	"strings"
 )
 
-func ami_getInfo() (ami []*ec2.Image) {
-	amiparam := &ec2.DescribeImagesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name: aws.String("owner-id"),
-				Values: []*string{
-					aws.String("564092832996"),
-				},
-			},
-			{
-				Name: aws.String("name"),
-				Values: []*string{
-					aws.String("docker-image-2016-02-21"),
-				},
-			},
-			{
-				Name: aws.String("is-public"),
-				Values: []*string{
-					aws.String("true"),
-				},
-			},
-		},
-	}
-	if resp, err := svc.DescribeImages(amiparam); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
-		os.Exit(1)
-	} else {
-		ami = resp.Images
-	}
-	return
-}
-
-func amiInit(c *cli.Context, profile *VPCProfile) {
-	profile.Ami = make([]AMIProfile, 0)
-	for _, ami := range ami_getInfo() {
-		profile.Ami = append(profile.Ami, AMIProfile{
-			Arch: ami.Architecture,
-			Desc: ami.Description,
-			Id:   ami.ImageId,
-			Name: ami.Name,
-		})
-	}
-	return
-}
-
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
 	var collection []*string
 	for _, subnet := range profile.Subnet {
