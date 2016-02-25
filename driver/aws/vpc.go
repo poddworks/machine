@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.SecurityGroup) {
+func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.SecurityGroup, keys []*ec2.KeyPairInfo) {
 	var vparam *ec2.DescribeVpcsInput
 	if id == "default" {
 		vparam = &ec2.DescribeVpcsInput{
@@ -76,11 +76,17 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 	} else {
 		grps = resp.SecurityGroups
 	}
+	if resp, err := svc.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{}); err != nil {
+		fmt.Fprint(os.Stderr, err.Error())
+		os.Exit(1)
+	} else {
+		keys = resp.KeyPairs
+	}
 	return
 }
 
 func vpcInit(c *cli.Context, profile *VPCProfile) {
-	vpc, subs, grps := vpc_getInfo(c.String("vpc-id"))
+	vpc, subs, grps, keys := vpc_getInfo(c.String("vpc-id"))
 	profile.Id = vpc.VpcId
 	profile.Cidr = vpc.CidrBlock
 	for _, subnet := range subs {
@@ -97,6 +103,13 @@ func vpcInit(c *cli.Context, profile *VPCProfile) {
 			Id:   group.GroupId,
 			Desc: group.Description,
 			Name: group.GroupName,
+		})
+	}
+	profile.KeyPair = make([]KeyPair, 0)
+	for _, key := range keys {
+		profile.KeyPair = append(profile.KeyPair, KeyPair{
+			Digest: key.KeyFingerprint,
+			Name:   key.KeyName,
 		})
 	}
 	return

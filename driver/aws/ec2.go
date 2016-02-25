@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func ami_getInfo() (ami *ec2.Image) {
+func ami_getInfo() (ami []*ec2.Image) {
 	amiparam := &ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -37,21 +37,23 @@ func ami_getInfo() (ami *ec2.Image) {
 	if resp, err := svc.DescribeImages(amiparam); err != nil {
 		fmt.Fprint(os.Stderr, err.Error())
 		os.Exit(1)
-	} else if len(resp.Images) == 0 {
-		fmt.Fprint(os.Stderr, "Unexpected state: unable to retrieve AMI for docker engine")
-		os.Exit(1)
 	} else {
-		ami = resp.Images[0] // there should be one only
+		ami = resp.Images
 	}
 	return
 }
 
-func amiInit(c *cli.Context, profile *AMIProfile) {
-	var ami = ami_getInfo()
-	profile.Arch = ami.Architecture
-	profile.Desc = ami.Description
-	profile.Id = ami.ImageId
-	profile.Name = ami.Name
+func amiInit(c *cli.Context, profile *VPCProfile) {
+	profile.Ami = make([]AMIProfile, 0)
+	for _, ami := range ami_getInfo() {
+		profile.Ami = append(profile.Ami, AMIProfile{
+			Arch: ami.Architecture,
+			Desc: ami.Description,
+			Id:   ami.ImageId,
+			Name: ami.Name,
+		})
+	}
+	return
 }
 
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
@@ -90,10 +92,14 @@ func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsIn
 	}
 	for _, tag := range tags {
 		var parts = strings.SplitN(tag, "=", 2)
-		tagparam.Tags = append(tagparam.Tags, &ec2.Tag{
-			Key:   aws.String(parts[0]),
-			Value: aws.String(parts[1]),
-		})
+		if len(parts) == 2 {
+			tagparam.Tags = append(tagparam.Tags, &ec2.Tag{
+				Key:   aws.String(parts[0]),
+				Value: aws.String(parts[1]),
+			})
+		} else {
+			fmt.Fprint(os.Stderr, "Skipping bad tag spec", tag)
+		}
 	}
 	return tagparam
 }
@@ -101,6 +107,7 @@ func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsIn
 func newEC2Inst(c *cli.Context, profile *Profile) {
 	var (
 		amiId            = c.String("instance-ami-id")
+		keyName          = c.String("instance-key")
 		num2Launch       = c.Int("instance-count")
 		iamProfile       = c.String("instance-profile")
 		instTags         = c.StringSlice("instance-tag")
@@ -115,10 +122,21 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 		MinCount:         aws.Int64(1),
 		SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
 	}
+	if keyName != "" {
+		ec2param.KeyName = aws.String(keyName)
+	} else if len(profile.VPC.KeyPair) != 0 {
+		ec2param.KeyName = profile.VPC.KeyPair[0].Name
+	} else {
+		fmt.Fprint(os.Stderr, "Cannot proceed without SSH keypair")
+		os.Exit(1)
+	}
 	if amiId != "" {
 		ec2param.ImageId = aws.String(amiId)
+	} else if len(profile.VPC.Ami) != 0 {
+		ec2param.ImageId = profile.VPC.Ami[0].Id
 	} else {
-		ec2param.ImageId = profile.Ami.Id
+		fmt.Fprint(os.Stderr, "Cannot proceed without an AMI")
+		os.Exit(1)
 	}
 	if strings.HasPrefix(iamProfile, "arn:aws:iam") {
 		ec2param.IamInstanceProfile = &ec2.IamInstanceProfileSpecification{

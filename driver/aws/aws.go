@@ -61,7 +61,7 @@ func NewCommand() cli.Command {
 					defer profile.Load().Dump()
 					p := &Profile{Name: c.String("name"), Region: *sess.Config.Region}
 					vpcInit(c, &p.VPC)
-					amiInit(c, &p.Ami)
+					amiInit(c, &p.VPC)
 					if _, ok := profile[p.Region]; !ok {
 						profile[p.Region] = make(RegionProfile)
 					}
@@ -75,6 +75,7 @@ func NewCommand() cli.Command {
 					cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
 					cli.StringFlag{Name: "instance-ami-id", Usage: "EC2 instance AMI ID"},
 					cli.IntFlag{Name: "instance-count", Value: 1, Usage: "EC2 instances to launch in this request"},
+					cli.StringFlag{Name: "instance-key", Usage: "EC2 instance SSH KeyPair"},
 					cli.StringFlag{Name: "instance-profile", Usage: "EC2 IAM Role to apply"},
 					cli.StringSliceFlag{Name: "instance-tag", Usage: "EC2 instance tag in the form field=value"},
 					cli.StringFlag{Name: "instance-type", Value: "t2.micro", Usage: "EC2 instance type"},
