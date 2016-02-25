@@ -30,5 +30,7 @@ docker create --restart=always --name logrotate \
     -v /var/lib/docker/containers:/var/lib/docker/containers:rw \
     tutum/logrotate
 
-# Configured system reboot now
-shutdown -r now
+# clear key.json with the intent that AMI from this build will have uniqe
+# Docker ID for Swarm
+rm -f /etc/docker/key.json
+
