@@ -40,7 +40,7 @@ func runScript(c *cli.Context) {
 	var (
 		scripts          = c.Args()
 		collect          = make(chan error)
-		sudo             = c.Parent().Bool("sudo")
+		sudo             = c.Bool("sudo")
 		user, key, hosts = parseArgs(c.Parent())
 	)
 	for _, host := range hosts {
@@ -100,7 +100,6 @@ func NewCommand() cli.Command {
 			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
 			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
 			cli.StringSliceFlag{Name: "host", Usage: "Remote host to run command in"},
-			cli.BoolFlag{Name: "sudo", Usage: "Run as sudo for this session"},
 		},
 		Subcommands: []cli.Command{
 			{
@@ -109,8 +108,11 @@ func NewCommand() cli.Command {
 				Action: runCmd,
 			},
 			{
-				Name:   "script",
-				Usage:  "Invoke script from argument",
+				Name:  "script",
+				Usage: "Invoke script from argument",
+				Flags: []cli.Flag{
+					cli.BoolFlag{Name: "sudo", Usage: "Run as sudo for this session"},
+				},
 				Action: runScript,
 			},
 		},
