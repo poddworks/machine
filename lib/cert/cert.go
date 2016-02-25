@@ -319,38 +319,40 @@ func NewCommand() cli.Command {
 						privKey = c.String("cert")
 						host    = c.String("host")
 
-						caBuf   = bytes.NewBuffer(ca)
-						certBuf = bytes.NewBuffer(cert)
-						keyBuf  = bytes.NewBuffer(key)
+						caBuf  = bytes.NewBuffer(ca)
+						caName = "/etc/docker/ca.pem"
 
-						sshctx = ssh.New(ssh.Config{
-							User:   user,
-							Server: host,
-							Key:    privKey,
-							Port:   "22",
-						})
+						certBuf  = bytes.NewBuffer(cert)
+						certName = "/etc/docker/server-cert.pem"
+
+						keyBuf  = bytes.NewBuffer(key)
+						keyName = "/etc/docker/server-key.pem"
 					)
-					if err := sshctx.Copy(certBuf, int64(certBuf.Len()), "/etc/docker/server-cert.pem"); err != nil {
+
+					// Establish SudoCommander
+					sudo := ssh.New(ssh.Config{User: user, Server: host, Key: privKey, Port: "22"}).Sudo()
+
+					if err := sudo.Copy(certBuf, int64(certBuf.Len()), certName, 0644); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := sshctx.Copy(keyBuf, int64(keyBuf.Len()), "/etc/docker/server-key.pem"); err != nil {
+					if err := sudo.Copy(keyBuf, int64(keyBuf.Len()), keyName, 0600); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := sshctx.Copy(caBuf, int64(caBuf.Len()), "/etc/docker/ca.pem"); err != nil {
+					if err := sudo.Copy(caBuf, int64(caBuf.Len()), caName, 0644); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := sshctx.ConfigureDockerTLS(); err != nil {
+					if err := sudo.ConfigureDockerTLS(); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := sshctx.StopDocker(); err != nil {
+					if err := sudo.StopDocker(); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := sshctx.StartDocker(); err != nil {
+					if err := sudo.StartDocker(); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}

@@ -40,27 +40,36 @@ func runScript(c *cli.Context) {
 	var (
 		scripts          = c.Args()
 		collect          = make(chan error)
+		sudo             = c.Parent().Bool("sudo")
 		user, key, hosts = parseArgs(c.Parent())
 	)
 	for _, host := range hosts {
 		go func(host string) {
+			var (
+				respStream <-chan Response
+				err        error
+
+				text string
+			)
 			sshctx := New(Config{User: user, Server: host, Key: key, Port: "22"})
 			for _, script := range scripts {
 				dst := path.Join("/tmp", path.Base(script))
-				fmt.Println(host, "- sending script", script, "->", dst)
-				if err := sshctx.CopyFile(script, dst); err != nil {
+				if err = sshctx.CopyFile(script, dst, 0644); err != nil {
 					fmt.Println(err.Error())
 					collect <- err
 					return
 				}
-				fmt.Println(host, "- script sent")
-				respStream, err := sshctx.Stream(fmt.Sprintf("sudo cat %s | sudo bash -", dst))
+				fmt.Println(host, "- sent script", script, "->", dst)
+				if sudo {
+					respStream, err = sshctx.Sudo().Stream("bash " + dst)
+				} else {
+					respStream, err = sshctx.Stream("bash " + dst)
+				}
 				if err != nil {
 					fmt.Println(err.Error())
 					collect <- err
 					return
 				}
-				var text string
 				for output := range respStream {
 					text, err = output.Data()
 					if err != nil {
@@ -91,6 +100,7 @@ func NewCommand() cli.Command {
 			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
 			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
 			cli.StringSliceFlag{Name: "host", Usage: "Remote host to run command in"},
+			cli.BoolFlag{Name: "sudo", Usage: "Run as sudo for this session"},
 		},
 		Subcommands: []cli.Command{
 			{

@@ -6,6 +6,7 @@ import (
 
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -17,6 +18,10 @@ import (
 	"sync"
 )
 
+var (
+	ErrCopyNotRegular = errors.New("Can only copy regular file")
+)
+
 type Response struct {
 	text string
 	err  error
@@ -26,24 +31,36 @@ func (r Response) Data() (string, error) {
 	return r.text, r.err
 }
 
+func getFileMode(m os.FileMode) (string, error) {
+	if !m.IsRegular() {
+		return "", ErrCopyNotRegular
+	}
+	perm := m.Perm() // retrieve permission
+	return fmt.Sprintf("C0%d%d%d", perm&0700>>6, perm&0070>>3, perm&0007), nil
+}
+
 type Commander interface {
 	// Copy file from src to dst
-	Copy(src io.Reader, size int64, dst string) error
+	Copy(src io.Reader, size int64, dst string, mode os.FileMode) error
 
 	// Copy file from src to dst
-	CopyFile(src, dst string) error
+	CopyFile(src, dst string, mode os.FileMode) error
 
 	// Create full directory
-	MkdirAll(path string) error
-
-	// Remove file, optionally remove contents recursively
-	Remove(path string, recursive bool) error
+	Mkdir(path string) error
 
 	// Run command and retreive combinded output
 	Run(cmd string) (output string, err error)
 
 	// Run command and stream combined output
 	Stream(cmd string) (output <-chan Response, err error)
+
+	// Elevate commander role
+	Sudo() SudoCommander
+}
+
+type SudoCommander interface {
+	Commander
 
 	// Utility with Docker Engine control
 	ConfigureDockerTLS() error
@@ -83,6 +100,7 @@ func (cfg Config) GetKeyFile() (ssh.Signer, error) {
 type SSHCommander struct {
 	ssh_config *ssh.ClientConfig
 	addr       string
+	sudo       bool
 }
 
 func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
@@ -94,7 +112,12 @@ func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
 	}
 }
 
-func (sshCmd *SSHCommander) Copy(src io.Reader, size int64, dst string) error {
+func (sshCmd *SSHCommander) Sudo() SudoCommander {
+	sshCmd.sudo = true
+	return sshCmd
+}
+
+func (sshCmd *SSHCommander) Copy(src io.Reader, size int64, dst string, mode os.FileMode) error {
 	session, err := sshCmd.connect()
 	if err != nil {
 		return err
@@ -102,24 +125,33 @@ func (sshCmd *SSHCommander) Copy(src io.Reader, size int64, dst string) error {
 	defer session.Close()
 
 	// setup remote path structure
-	if err = sshCmd.MkdirAll(filepath.Dir(dst)); err != nil {
+	if err = sshCmd.Mkdir(filepath.Dir(dst)); err != nil {
+		return err
+	}
+
+	perm, err := getFileMode(mode)
+	if err != nil {
 		return err
 	}
 
 	w, _ := session.StdinPipe()
 	go func() {
+		defer w.Close()
 		// stream file content
-		fmt.Fprintln(w, "C0600", size, filepath.Base(dst))
+		fmt.Fprintln(w, perm, size, filepath.Base(dst))
 		io.Copy(w, src)
 		fmt.Fprint(w, "\x00")
-		w.Close()
 	}()
 
 	// initiate scp on remote
-	return session.Run(fmt.Sprint("sudo scp -t ", dst))
+	var cmd = fmt.Sprint("scp -t ", dst)
+	if sshCmd.sudo {
+		cmd = fmt.Sprintf("sudo -s %s", cmd)
+	}
+	return session.Run(cmd)
 }
 
-func (sshCmd *SSHCommander) CopyFile(src, dst string) error {
+func (sshCmd *SSHCommander) CopyFile(src, dst string, mode os.FileMode) error {
 	file, err := os.Open(src)
 	if err != nil {
 		return err
@@ -129,29 +161,21 @@ func (sshCmd *SSHCommander) CopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return sshCmd.Copy(file, info.Size(), dst)
+	return sshCmd.Copy(file, info.Size(), dst, mode)
 }
 
-func (sshCmd *SSHCommander) MkdirAll(path string) error {
+func (sshCmd *SSHCommander) Mkdir(path string) error {
 	session, err := sshCmd.connect()
 	if err != nil {
 		return err
 	}
 	defer session.Close()
-	return session.Run(fmt.Sprint("sudo mkdir -p ", path))
-}
-
-func (sshCmd *SSHCommander) Remove(path string, recursive bool) error {
-	session, err := sshCmd.connect()
-	if err != nil {
-		return err
+	// initiate mkdir on remote
+	var cmd = fmt.Sprint("mkdir -p ", path)
+	if sshCmd.sudo {
+		cmd = fmt.Sprintf("sudo -s %s", cmd)
 	}
-	defer session.Close()
-	if recursive {
-		return session.Run(fmt.Sprint("sudo rm -rf ", path))
-	} else {
-		return session.Run(fmt.Sprint("sudo rm -f ", path))
-	}
+	return session.Run(cmd)
 }
 
 // buffer is a utility object for combined output
@@ -175,6 +199,9 @@ func (sshCmd *SSHCommander) Run(cmd string) (output string, err error) {
 	var b buffer
 	session.Stdout = &b
 	session.Stderr = &b
+	if sshCmd.sudo {
+		cmd = fmt.Sprintf("sudo -s %s", cmd)
+	}
 	err = session.Run(cmd)
 	output = b.buf.String()
 	return
@@ -218,6 +245,9 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 		}
 		output <- Response{err: session.Wait()}
 	}()
+	if sshCmd.sudo {
+		cmd = fmt.Sprintf("sudo -s %s", cmd)
+	}
 	if err := session.Start(cmd); err != nil {
 		return nil, err
 	} else {
@@ -231,7 +261,15 @@ func (sshCmd *SSHCommander) ConfigureDockerTLS() error {
 		return err
 	}
 	defer session.Close()
-	return session.Run(`echo 'DOCKER_OPTS="-H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 --tlsverify --tlscacert /etc/docker/ca.pem --tlscert /etc/docker/server-cert.pem --tlskey /etc/docker/server-key.pem "' | sudo tee /etc/default/docker`)
+	var dockerOpts = []string{
+		"-H tcp://0.0.0.0:2375",
+		"--tlsverify",
+		"--tlscacert /etc/docker/ca.pem",
+		"--tlscert /etc/docker/server-cert.pem",
+		"--tlskey /etc/docker/server-key.pem",
+	}
+	var cmd = strings.Join(dockerOpts, " ")
+	return session.Run(fmt.Sprintf(`echo 'DOCKER_OPTS="${DOCKER_OPTS} %s"' | sudo tee -a /etc/default/docker`, cmd))
 }
 
 func (sshCmd *SSHCommander) StartDocker() error {

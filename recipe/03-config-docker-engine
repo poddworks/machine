@@ -4,7 +4,7 @@ service docker stop
 
 # NOTE: prefer the first available spare disk
 dev=`lsblk | grep disk | sed -n '2p' | awk '{print $1}'`
-host_bind="-H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375"
+host_bind="-H unix:///var/run/docker.sock"
 storage_opts=
 
 if [ -x /sbin/pvcreate ] && [ ! -z ${dev} ]; then
@@ -17,7 +17,7 @@ if [ -x /sbin/pvcreate ] && [ ! -z ${dev} ]; then
     storage_opts="--storage-driver=devicemapper --storage-opt dm.datadev=/dev/vg-docker/data --storage-opt dm.metadatadev=/dev/vg-docker/metadata"
 fi
 truncate -s0 /etc/default/docker
-echo DOCKER_OPTS="\"${host_bind} ${storage_opts}\"" >>/etc/default/docker
+echo DOCKER_OPTS="\"${storage_opts} ${host_bind}\"" >>/etc/default/docker
 
 service docker start
 
