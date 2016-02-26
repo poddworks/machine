@@ -1,6 +1,9 @@
 package aws
 
 import (
+	"github.com/jeffjen/machine/lib/cert"
+	"github.com/jeffjen/machine/lib/ssh"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/codegangsta/cli"
@@ -9,7 +12,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"sync"
+	"time"
 )
 
 var (
@@ -41,13 +44,10 @@ func ec2_findSecurityGroup(profile *VPCProfile, name ...string) (sgId []*string)
 	return
 }
 
-func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsInput {
+func ec2_tagInstanceParam(tags []string) (*ec2.CreateTagsInput, error) {
 	tagparam := &ec2.CreateTagsInput{
-		Tags:      make([]*ec2.Tag, 0, len(tags)),
-		Resources: make([]*string, 0, len(instances)),
-	}
-	for _, inst := range instances {
-		tagparam.Resources = append(tagparam.Resources, inst.InstanceId)
+		Tags:      make([]*ec2.Tag, 0),
+		Resources: make([]*string, 0),
 	}
 	for _, tag := range tags {
 		var parts = strings.SplitN(tag, "=", 2)
@@ -57,10 +57,10 @@ func ec2_tagInstance(tags []string, instances []*ec2.Instance) *ec2.CreateTagsIn
 				Value: aws.String(parts[1]),
 			})
 		} else {
-			fmt.Fprint(os.Stderr, "Skipping bad tag spec", tag)
+			return nil, fmt.Errorf("Skipping bad tag spec - %s\n", tag)
 		}
 	}
-	return tagparam
+	return tagparam, nil
 }
 
 func ec2_EbsRoot(size int) (mapping *ec2.BlockDeviceMapping) {
@@ -78,11 +78,11 @@ func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
 	mapping = make([]*ec2.BlockDeviceMapping, 0)
 	for i, volSize := range size {
 		if volSize <= 0 {
-			fmt.Fprint(os.Stderr, "Skipping bad volume size", volSize)
+			fmt.Fprintln(os.Stderr, "Skipping bad volume size", volSize)
 			continue
 		}
 		if i >= len(DEVICE_NAME) {
-			fmt.Fprint(os.Stderr, "You had more volumes then AWS allowed")
+			fmt.Fprintln(os.Stderr, "You had more volumes then AWS allowed")
 			os.Exit(1)
 		}
 		mapping = append(mapping, &ec2.BlockDeviceMapping{
@@ -95,6 +95,65 @@ func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
 		})
 	}
 	return
+}
+
+func ec2_ConfigureEngineCert(inst *ec2.Instance) error {
+	var (
+		CertPath     = "/home/yihungjen/.machine"
+		Organization = "podd.org"
+
+		Hosts = []string{
+			*inst.PublicIpAddress,
+			*inst.PrivateIpAddress,
+			"localhost",
+			"127.0.0.1",
+		}
+
+		ssh_config = ssh.Config{
+			User:   "ubuntu",
+			Server: *inst.PublicIpAddress,
+			Key:    "/home/yihungjen/.ssh/podd.pem",
+			Port:   "22",
+		}
+	)
+
+	fmt.Println(*inst.InstanceId, "- generate cert for subjects -", Hosts)
+	CA, Cert, Key, err := cert.GenerateServerCertificate(CertPath, Organization, Hosts)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return err
+	}
+	fmt.Println(*inst.InstanceId, "- configure docker engine")
+
+	time.Sleep(10 * time.Second) // FIXME: Wait for SSH to come up fully
+
+	err = cert.SendEngineCertificate(CA, Cert, Key, ssh_config)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return err
+	}
+	return nil
+}
+
+func ec2_WaitForReady(output chan error, instId *string, next func(*ec2.Instance) error) {
+	param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
+	if err := svc.WaitUntilInstanceRunning(param); err != nil {
+		fmt.Fprintln(os.Stderr, *instId, "-", err.Error())
+		output <- err
+		return
+	}
+	resp, err := svc.DescribeInstances(param)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, *instId, "-", err.Error())
+		output <- err
+	} else {
+		inst := resp.Reservations[0].Instances[0]
+		go func() {
+			fmt.Println(*inst.InstanceId, "- ready")
+			output <- next(inst)
+		}()
+	}
+	// NOTE: this should end here
 }
 
 func newEC2Inst(c *cli.Context, profile *Profile) {
@@ -124,7 +183,7 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 	} else if len(profile.VPC.Ami) != 0 {
 		ec2param.ImageId = profile.VPC.Ami[0].Id
 	} else {
-		fmt.Fprint(os.Stderr, "Cannot proceed without an AMI")
+		fmt.Fprintln(os.Stderr, "Cannot proceed without an AMI")
 		os.Exit(1)
 	}
 
@@ -134,7 +193,7 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 	} else if len(profile.VPC.KeyPair) != 0 {
 		ec2param.KeyName = profile.VPC.KeyPair[0].Name
 	} else {
-		fmt.Fprint(os.Stderr, "Cannot proceed without SSH keypair")
+		fmt.Fprintln(os.Stderr, "Cannot proceed without SSH keypair")
 		os.Exit(1)
 	}
 
@@ -166,48 +225,36 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 		ec2param.SubnetId = ec2_getSubnet(&profile.VPC, !isPrivate)
 	}
 
+	// Step 6: create tags from spec
+	tag, err := ec2_tagInstanceParam(instTags)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
 	// Last step: launch + tag instances
 	resp, err := svc.RunInstances(ec2param)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	if len(instTags) > 0 {
-		_, err = svc.CreateTags(ec2_tagInstance(instTags, resp.Instances))
+	if len(tag.Tags) > 0 {
+		for _, inst := range resp.Instances {
+			tag.Resources = append(tag.Resources, inst.InstanceId)
+		}
+		_, err = svc.CreateTags(tag)
 		if err != nil {
 			fmt.Println(err.Error())
-			os.Exit(1)
 		}
 	}
 	fmt.Println("Launched instances...")
 
-	var wg sync.WaitGroup
-
-	// scheduled worker count
-	wg.Add(len(resp.Instances))
-
+	var collect = make(chan error)
 	for _, inst := range resp.Instances {
-		go func(instId *string) {
-			defer wg.Done()
-			fmt.Println(*instId, "- pending")
-			param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
-			if err := svc.WaitUntilInstanceRunning(param); err != nil {
-				fmt.Fprint(os.Stderr, *instId, "-", err.Error())
-				return
-			}
-			resp, err := svc.DescribeInstances(param)
-			if err != nil {
-				fmt.Fprint(os.Stderr, *instId, "-", err.Error())
-				return
-			}
-			for _, rsvp := range resp.Reservations {
-				for _, inst := range rsvp.Instances {
-					fmt.Println(*inst.InstanceId, "-", *inst.PublicIpAddress, "-", *inst.PrivateIpAddress)
-				}
-			}
-		}(inst.InstanceId)
+		fmt.Println(*inst.InstanceId, "- pending")
+		go ec2_WaitForReady(collect, inst.InstanceId, ec2_ConfigureEngineCert)
 	}
-
-	// Retrieved all info
-	wg.Wait()
+	for exp := 0; exp < len(resp.Instances); exp++ {
+		<-collect
+	}
 }

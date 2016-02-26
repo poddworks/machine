@@ -161,11 +161,8 @@ func gencert(c *cli.Context, org, certpath string) {
 	}
 }
 
-func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string) (cert, key []byte, err error) {
-	var (
-		keyBuf  = new(bytes.Buffer)
-		certBuf = new(bytes.Buffer)
-	)
+func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string) (cert, key *bytes.Buffer, err error) {
+	cert, key = new(bytes.Buffer), new(bytes.Buffer)
 
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth}
 	for _, h := range hosts {
@@ -189,7 +186,7 @@ func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string
 	if err != nil {
 		return // Unable to generate private key for certificate
 	}
-	err = pem.Encode(keyBuf, &pem.Block{
+	err = pem.Encode(key, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
@@ -201,7 +198,7 @@ func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string
 	if err != nil {
 		return // Unable to create Certificate
 	}
-	err = pem.Encode(certBuf, &pem.Block{
+	err = pem.Encode(cert, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: derBytes,
 	})
@@ -210,8 +207,39 @@ func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string
 	}
 
 	// retrieve encoded PEM bytes for Certificate and Key
-	cert, key = certBuf.Bytes(), keyBuf.Bytes()
 	return
+}
+
+type PemBlock struct {
+	name string
+	buf  *bytes.Buffer
+}
+
+func NewPemBlock(name string, block []byte) *PemBlock {
+	return &PemBlock{name, bytes.NewBuffer(block)}
+}
+
+func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
+	sudo := ssh.New(cfg).Sudo()
+	if err := sudo.Copy(cert.buf, int64(cert.buf.Len()), "/etc/docker/"+cert.name, 0644); err != nil {
+		return err
+	}
+	if err := sudo.Copy(key.buf, int64(key.buf.Len()), "/etc/docker/"+key.name, 0600); err != nil {
+		return err
+	}
+	if err := sudo.Copy(ca.buf, int64(ca.buf.Len()), "/etc/docker/"+ca.name, 0644); err != nil {
+		return err
+	}
+	if err := sudo.ConfigureDockerTLS(); err != nil {
+		return err
+	}
+	if err := sudo.StopDocker(); err != nil {
+		return err
+	}
+	if err := sudo.StartDocker(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
@@ -230,7 +258,7 @@ func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
 	return
 }
 
-func generateServerCertificate(c *cli.Context) (ca, cert, key []byte) {
+func generateServerCertificate(c *cli.Context) (ca, cert, key *PemBlock) {
 	var hosts = make([]string, 0)
 	if hostname := c.String("host"); hostname == "" {
 		fmt.Println("You must provide hostname to create Certificate for")
@@ -244,21 +272,30 @@ func generateServerCertificate(c *cli.Context) (ca, cert, key []byte) {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+	ca, cert, key, err = GenerateServerCertificate(certpath, org, hosts)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	return
+}
+
+func GenerateServerCertificate(certpath, org string, hosts []string) (ca, cert, key *PemBlock, err error) {
 	tmpl, err := NewX509Certificate(org)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return
 	}
-	cert, key, err = GenerateCertificate(certpath, tmpl, hosts)
+	Cert, Key, err := GenerateCertificate(certpath, tmpl, hosts)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return
 	}
-	ca, err = ioutil.ReadFile(path.Join(certpath, "ca.pem"))
+	CA, err := ioutil.ReadFile(path.Join(certpath, "ca.pem"))
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return
 	}
+	ca = NewPemBlock("ca.pem", CA)
+	cert = &PemBlock{"server-cert.pem", Cert}
+	key = &PemBlock{"server-key.pem", Key}
 	return
 }
 
@@ -293,11 +330,11 @@ func NewCommand() cli.Command {
 				},
 				Action: func(c *cli.Context) {
 					_, cert, key := generateServerCertificate(c)
-					if err := ioutil.WriteFile("server-cert.pem", cert, 0644); err != nil {
+					if err := ioutil.WriteFile(cert.name, cert.buf.Bytes(), 0644); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					if err := ioutil.WriteFile("server-key.pem", key, 0600); err != nil {
+					if err := ioutil.WriteFile(key.name, key.buf.Bytes(), 0600); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
@@ -314,45 +351,16 @@ func NewCommand() cli.Command {
 				},
 				Action: func(c *cli.Context) {
 					ca, cert, key := generateServerCertificate(c)
+
 					var (
 						user    = c.String("user")
 						privKey = c.String("cert")
 						host    = c.String("host")
 
-						caBuf  = bytes.NewBuffer(ca)
-						caName = "/etc/docker/ca.pem"
-
-						certBuf  = bytes.NewBuffer(cert)
-						certName = "/etc/docker/server-cert.pem"
-
-						keyBuf  = bytes.NewBuffer(key)
-						keyName = "/etc/docker/server-key.pem"
+						ssh_config = ssh.Config{User: user, Server: host, Key: privKey, Port: "22"}
 					)
 
-					// Establish SudoCommander
-					sudo := ssh.New(ssh.Config{User: user, Server: host, Key: privKey, Port: "22"}).Sudo()
-
-					if err := sudo.Copy(certBuf, int64(certBuf.Len()), certName, 0644); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := sudo.Copy(keyBuf, int64(keyBuf.Len()), keyName, 0600); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := sudo.Copy(caBuf, int64(caBuf.Len()), caName, 0644); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := sudo.ConfigureDockerTLS(); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := sudo.StopDocker(); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := sudo.StartDocker(); err != nil {
+					if err := SendEngineCertificate(ca, cert, key, ssh_config); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
