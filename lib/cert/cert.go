@@ -220,25 +220,36 @@ func NewPemBlock(name string, block []byte) *PemBlock {
 }
 
 func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
-	sudo := ssh.New(cfg).Sudo()
+	var sudo = ssh.New(cfg).Sudo()
+
 	if err := sudo.Copy(cert.buf, int64(cert.buf.Len()), "/etc/docker/"+cert.name, 0644); err != nil {
 		return err
 	}
+	fmt.Println(cfg.Server, "- Cert sent")
+
 	if err := sudo.Copy(key.buf, int64(key.buf.Len()), "/etc/docker/"+key.name, 0600); err != nil {
 		return err
 	}
+	fmt.Println(cfg.Server, "- Key sent")
+
 	if err := sudo.Copy(ca.buf, int64(ca.buf.Len()), "/etc/docker/"+ca.name, 0644); err != nil {
 		return err
 	}
+	fmt.Println(cfg.Server, "- CA sent")
+
 	if err := sudo.ConfigureDockerTLS(); err != nil {
 		return err
 	}
-	if err := sudo.StopDocker(); err != nil {
-		return err
-	}
+	fmt.Println(cfg.Server, "- Configured Docker Engine")
+
+	sudo.StopDocker()
+	fmt.Println(cfg.Server, "- Stopped Docker Engine")
+
 	if err := sudo.StartDocker(); err != nil {
 		return err
 	}
+	fmt.Println(cfg.Server, "- Started Docker Engine")
+
 	return nil
 }
 
@@ -350,8 +361,6 @@ func NewCommand() cli.Command {
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
 				Action: func(c *cli.Context) {
-					ca, cert, key := generateServerCertificate(c)
-
 					var (
 						user    = c.String("user")
 						privKey = c.String("cert")
@@ -359,6 +368,9 @@ func NewCommand() cli.Command {
 
 						ssh_config = ssh.Config{User: user, Server: host, Key: privKey, Port: "22"}
 					)
+
+					ca, cert, key := generateServerCertificate(c)
+					fmt.Println(host, "- generated certificate")
 
 					if err := SendEngineCertificate(ca, cert, key, ssh_config); err != nil {
 						fmt.Println(err.Error())

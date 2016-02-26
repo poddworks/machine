@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"github.com/jeffjen/machine/lib/docker"
+
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -40,6 +42,12 @@ func getFileMode(m os.FileMode) (string, error) {
 }
 
 type Commander interface {
+	// Load file from target to here
+	Load(target string, here io.Writer) error
+
+	// Load file from target to here
+	LoadFile(target, here string, mode os.FileMode) error
+
 	// Copy file from src to dst
 	Copy(src io.Reader, size int64, dst string, mode os.FileMode) error
 
@@ -115,6 +123,40 @@ func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
 func (sshCmd *SSHCommander) Sudo() SudoCommander {
 	sshCmd.sudo = true
 	return sshCmd
+}
+
+func (sshCmd *SSHCommander) Load(target string, here io.Writer) error {
+	session, err := sshCmd.connect()
+	if err != nil {
+		return err
+	}
+	r, _ := session.StdoutPipe()
+	var ret = make(chan error)
+	go func() {
+		defer session.Close()
+		var cmd = fmt.Sprint("cat ", target)
+		if sshCmd.sudo {
+			cmd = fmt.Sprintf("sudo -s %s", cmd)
+		}
+		ret <- session.Run(cmd)
+	}()
+	io.Copy(here, r)
+	return <-ret
+}
+
+func (sshCmd *SSHCommander) LoadFile(target, here string, mode os.FileMode) error {
+	buf := new(bytes.Buffer)
+	err := sshCmd.Load(target, buf)
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(here, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = io.Copy(file, buf)
+	return err
 }
 
 func (sshCmd *SSHCommander) Copy(src io.Reader, size int64, dst string, mode os.FileMode) error {
@@ -256,20 +298,38 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 }
 
 func (sshCmd *SSHCommander) ConfigureDockerTLS() error {
-	session, err := sshCmd.connect()
+	const (
+		daemonPath = "/etc/docker/daemon.json"
+
+		CAPem   = "/etc/docker/ca.pem"
+		CertPem = "/etc/docker/server-cert.pem"
+		KeyPem  = "/etc/docker/server-key.pem"
+	)
+
+	var (
+		dOpts *docker.DaemonConfig
+
+		buf = new(bytes.Buffer)
+	)
+
+	err := sshCmd.Load(daemonPath, buf)
 	if err != nil {
 		return err
 	}
-	defer session.Close()
-	var dockerOpts = []string{
-		"-H tcp://0.0.0.0:2375",
-		"--tlsverify",
-		"--tlscacert /etc/docker/ca.pem",
-		"--tlscert /etc/docker/server-cert.pem",
-		"--tlskey /etc/docker/server-key.pem",
+	dOpts, err = docker.LoadDaemonConfig(buf.Bytes())
+	if err != nil {
+		return err
 	}
-	var cmd = strings.Join(dockerOpts, " ")
-	return session.Run(fmt.Sprintf(`echo 'DOCKER_OPTS="${DOCKER_OPTS} %s"' | sudo tee -a /etc/default/docker`, cmd))
+	dOpts.AddHost("tcp://0.0.0.0:2375")
+	dOpts.TlsVerify = true
+	dOpts.TlsCACert = CAPem
+	dOpts.TlsCert = CertPem
+	dOpts.TlsKey = KeyPem
+	if r, err := dOpts.Reader(); err != nil {
+		return err
+	} else {
+		return sshCmd.Copy(r, int64(r.Len()), daemonPath, 0600)
+	}
 }
 
 func (sshCmd *SSHCommander) StartDocker() error {
