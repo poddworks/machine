@@ -19,6 +19,11 @@ var (
 	DEVICE_NAME = []string{"b", "c", "d", "e", "f", "g", "h", "i"}
 )
 
+func ec2_Noop(inst *ec2.Instance) error {
+	fmt.Println(*inst.InstanceId, "-", *inst.PublicIpAddress, *inst.PrivateIpAddress)
+	return nil
+}
+
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
 	var collection []*string
 	for _, subnet := range profile.Subnet {
@@ -169,6 +174,8 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 		isPrivate        = c.Bool("subnet-private")
 		subnetId         = c.String("subnet-id")
 		networkACLGroups = c.StringSlice("security-group")
+
+		useDocker = c.BoolT("is-docker-engine")
 	)
 	ec2param := &ec2.RunInstancesInput{
 		InstanceType:     aws.String(instType),
@@ -252,7 +259,11 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 	var collect = make(chan error)
 	for _, inst := range resp.Instances {
 		fmt.Println(*inst.InstanceId, "- pending")
-		go ec2_WaitForReady(collect, inst.InstanceId, ec2_ConfigureEngineCert)
+		if useDocker {
+			go ec2_WaitForReady(collect, inst.InstanceId, ec2_ConfigureEngineCert)
+		} else {
+			go ec2_WaitForReady(collect, inst.InstanceId, ec2_Noop)
+		}
 	}
 	for exp := 0; exp < len(resp.Instances); exp++ {
 		<-collect

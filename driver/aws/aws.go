@@ -81,6 +81,7 @@ func NewCommand() cli.Command {
 					cli.IntFlag{Name: "instance-root-size", Value: 8, Usage: "EC2 root volume size"},
 					cli.IntSliceFlag{Name: "instance-volume-size", Usage: "EC2 EBS volume size"},
 					cli.StringFlag{Name: "instance-type", Value: "t2.micro", Usage: "EC2 instance type"},
+					cli.BoolTFlag{Name: "is-docker-engine", Usage: "Launched EC2 instance is a Docker Engine"},
 					cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
 					cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
 					cli.StringSliceFlag{Name: "security-group", Usage: "Network security group for user"},
