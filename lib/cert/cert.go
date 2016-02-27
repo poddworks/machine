@@ -220,7 +220,20 @@ func NewPemBlock(name string, block []byte) *PemBlock {
 }
 
 func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
+	const attempts = 5
+
 	var sudo = ssh.New(cfg).Sudo()
+
+	// Wait for SSH daemon online
+	var idx = 0
+	for ; idx < attempts; idx++ {
+		if _, err := sudo.Run("date"); err == nil {
+			break
+		}
+	}
+	if idx == attempts {
+		return fmt.Errorf(cfg.Server, "- Unable to contact remote")
+	}
 
 	if err := sudo.Copy(cert.buf, int64(cert.buf.Len()), "/etc/docker/"+cert.name, 0644); err != nil {
 		return err

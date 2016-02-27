@@ -12,7 +12,6 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"time"
 )
 
 var (
@@ -129,8 +128,6 @@ func ec2_ConfigureEngineCert(inst *ec2.Instance) error {
 		return err
 	}
 	fmt.Println(*inst.InstanceId, "- configure docker engine")
-
-	time.Sleep(10 * time.Second) // FIXME: Wait for SSH to come up fully
 
 	err = cert.SendEngineCertificate(CA, Cert, Key, ssh_config)
 	if err != nil {
