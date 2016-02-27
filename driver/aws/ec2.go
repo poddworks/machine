@@ -1,8 +1,7 @@
 package aws
 
 import (
-	"github.com/jeffjen/machine/lib/cert"
-	"github.com/jeffjen/machine/lib/ssh"
+	"github.com/jeffjen/machine/lib/machine"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -12,15 +11,16 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 )
 
 var (
 	DEVICE_NAME = []string{"b", "c", "d", "e", "f", "g", "h", "i"}
 )
 
-func ec2_Noop(inst *ec2.Instance) error {
-	fmt.Println(*inst.InstanceId, "-", *inst.PublicIpAddress, *inst.PrivateIpAddress)
-	return nil
+type ec2state struct {
+	*ec2.Instance
+	err error
 }
 
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
@@ -101,64 +101,27 @@ func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
 	return
 }
 
-func ec2_ConfigureEngineCert(inst *ec2.Instance) error {
-	var (
-		CertPath     = "/home/yihungjen/.machine"
-		Organization = "podd.org"
-
-		Hosts = []string{
-			*inst.PublicIpAddress,
-			*inst.PrivateIpAddress,
-			"localhost",
-			"127.0.0.1",
+func ec2_WaitForReady(instId *string) <-chan ec2state {
+	out := make(chan ec2state)
+	go func() {
+		defer close(out)
+		param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
+		if err := svc.WaitUntilInstanceRunning(param); err != nil {
+			out <- ec2state{nil, fmt.Errorf("%s - %s", *instId, err)}
+			return
 		}
-
-		ssh_config = ssh.Config{
-			User:   "ubuntu",
-			Server: *inst.PublicIpAddress,
-			Key:    "/home/yihungjen/.ssh/podd.pem",
-			Port:   "22",
+		resp, err := svc.DescribeInstances(param)
+		if err != nil {
+			out <- ec2state{nil, fmt.Errorf("%s - %s", *instId, err)}
+		} else {
+			out <- ec2state{resp.Reservations[0].Instances[0], nil}
 		}
-	)
-
-	fmt.Println(*inst.InstanceId, "- generate cert for subjects -", Hosts)
-	CA, Cert, Key, err := cert.GenerateServerCertificate(CertPath, Organization, Hosts)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return err
-	}
-	fmt.Println(*inst.InstanceId, "- configure docker engine")
-
-	err = cert.SendEngineCertificate(CA, Cert, Key, ssh_config)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return err
-	}
-	return nil
+		// NOTE: this should end here
+	}()
+	return out
 }
 
-func ec2_WaitForReady(output chan error, instId *string, next func(*ec2.Instance) error) {
-	param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
-	if err := svc.WaitUntilInstanceRunning(param); err != nil {
-		fmt.Fprintln(os.Stderr, *instId, "-", err.Error())
-		output <- err
-		return
-	}
-	resp, err := svc.DescribeInstances(param)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, *instId, "-", err.Error())
-		output <- err
-	} else {
-		inst := resp.Reservations[0].Instances[0]
-		go func() {
-			fmt.Println(*inst.InstanceId, "- ready")
-			output <- next(inst)
-		}()
-	}
-	// NOTE: this should end here
-}
-
-func newEC2Inst(c *cli.Context, profile *Profile) {
+func newEC2Inst(c *cli.Context, profile *Profile, hosts *machine.Hosts) {
 	var (
 		amiId            = c.String("instance-ami-id")
 		keyName          = c.String("instance-key")
@@ -172,7 +135,7 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 		subnetId         = c.String("subnet-id")
 		networkACLGroups = c.StringSlice("security-group")
 
-		useDocker = c.BoolT("is-docker-engine")
+		//useDocker = c.BoolT("is-docker-engine")
 	)
 	ec2param := &ec2.RunInstancesInput{
 		InstanceType:     aws.String(instType),
@@ -253,16 +216,31 @@ func newEC2Inst(c *cli.Context, profile *Profile) {
 	}
 	fmt.Println("Launched instances...")
 
-	var collect = make(chan error)
-	for _, inst := range resp.Instances {
-		fmt.Println(*inst.InstanceId, "- pending")
-		if useDocker {
-			go ec2_WaitForReady(collect, inst.InstanceId, ec2_ConfigureEngineCert)
-		} else {
-			go ec2_WaitForReady(collect, inst.InstanceId, ec2_Noop)
-		}
+	var waitForReady = func(instances ...*ec2.Instance) <-chan ec2state {
+		var wg sync.WaitGroup
+		out := make(chan ec2state)
+		go func() {
+			defer close(out)
+			wg.Add(len(instances))
+			for _, inst := range instances {
+				go func(ch <-chan ec2state) {
+					out <- <-ch
+					wg.Done()
+				}(ec2_WaitForReady(inst.InstanceId))
+			}
+			wg.Wait()
+		}()
+		return out
 	}
-	for exp := 0; exp < len(resp.Instances); exp++ {
-		<-collect
+	for state := range waitForReady(resp.Instances...) {
+		if state.err == nil {
+			fmt.Println(*state.InstanceId, "- ready -", *state.PublicIpAddress, *state.PrivateIpAddress)
+			hosts.IpAddrs = append(hosts.IpAddrs, machine.IpAddr{
+				Pub:  *state.PublicIpAddress,
+				Priv: *state.PrivateIpAddress,
+			})
+		} else {
+			fmt.Fprintln(os.Stderr, state.err.Error())
+		}
 	}
 }

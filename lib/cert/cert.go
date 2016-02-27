@@ -230,9 +230,10 @@ func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
 		if _, err := sudo.Run("date"); err == nil {
 			break
 		}
+		time.Sleep(5 * time.Second)
 	}
 	if idx == attempts {
-		return fmt.Errorf(cfg.Server, "- Unable to contact remote")
+		return fmt.Errorf("%s - Unable to contact remote", cfg.Server)
 	}
 
 	if err := sudo.Copy(cert.buf, int64(cert.buf.Len()), "/etc/docker/"+cert.name, 0644); err != nil {

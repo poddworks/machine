@@ -1,10 +1,6 @@
 package main
 
 import (
-	"github.com/jeffjen/machine/driver/aws"
-	"github.com/jeffjen/machine/lib/cert"
-	"github.com/jeffjen/machine/lib/ssh"
-
 	"github.com/codegangsta/cli"
 
 	"os"
@@ -19,9 +15,7 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
-		aws.NewCommand(),
-		ssh.NewCommand(),
-		cert.NewCommand(),
+		CreateCommand(),
 	}
 	app.Before = nil
 	app.Action = nil
