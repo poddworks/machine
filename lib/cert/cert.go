@@ -3,8 +3,6 @@ package cert
 import (
 	"github.com/jeffjen/machine/lib/ssh"
 
-	"github.com/codegangsta/cli"
-
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -17,16 +15,8 @@ import (
 	"math/big"
 	"net"
 	"os"
-	"os/user"
 	path "path/filepath"
-	"strings"
 	"time"
-)
-
-const (
-	DEFAULT_CERT_PATH = "~/.machine"
-
-	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
 )
 
 func NewX509Certificate(org string) (*x509.Certificate, error) {
@@ -80,87 +70,6 @@ func WriteKey(output string, priv *rsa.PrivateKey) error {
 	})
 }
 
-func gencacert(c *cli.Context, org, certpath string) {
-	tmpl, err := NewX509Certificate(org)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	tmpl.IsCA = true
-	tmpl.KeyUsage |= x509.KeyUsageCertSign
-	tmpl.KeyUsage |= x509.KeyUsageKeyEncipherment
-	tmpl.KeyUsage |= x509.KeyUsageKeyAgreement
-
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	err = WriteCertificate(path.Join(certpath, "ca.pem"), derBytes)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	err = WriteKey(path.Join(certpath, "ca-key.pem"), priv)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-}
-
-func gencert(c *cli.Context, org, certpath string) {
-	tmpl, err := NewX509Certificate(org)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
-	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
-
-	caCert, err := LoadCACert(certpath)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	err = WriteCertificate(path.Join(certpath, "cert.pem"), derBytes)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	err = WriteKey(path.Join(certpath, "key.pem"), priv)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-}
-
 func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string) (cert, key *bytes.Buffer, err error) {
 	cert, key = new(bytes.Buffer), new(bytes.Buffer)
 
@@ -211,12 +120,15 @@ func GenerateCertificate(certpath string, tmpl *x509.Certificate, hosts []string
 }
 
 type PemBlock struct {
-	name string
-	buf  *bytes.Buffer
+	Name string
+	Buf  *bytes.Buffer
 }
 
 func NewPemBlock(name string, block []byte) *PemBlock {
-	return &PemBlock{name, bytes.NewBuffer(block)}
+	return &PemBlock{
+		Name: name,
+		Buf:  bytes.NewBuffer(block),
+	}
 }
 
 func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
@@ -236,17 +148,17 @@ func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
 		return fmt.Errorf("%s - Unable to contact remote", cfg.Server)
 	}
 
-	if err := sudo.Copy(cert.buf, int64(cert.buf.Len()), "/etc/docker/"+cert.name, 0644); err != nil {
+	if err := sudo.Copy(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
 		return err
 	}
 	fmt.Println(cfg.Server, "- Cert sent")
 
-	if err := sudo.Copy(key.buf, int64(key.buf.Len()), "/etc/docker/"+key.name, 0600); err != nil {
+	if err := sudo.Copy(key.Buf, int64(key.Buf.Len()), "/etc/docker/"+key.Name, 0600); err != nil {
 		return err
 	}
 	fmt.Println(cfg.Server, "- Key sent")
 
-	if err := sudo.Copy(ca.buf, int64(ca.buf.Len()), "/etc/docker/"+ca.name, 0644); err != nil {
+	if err := sudo.Copy(ca.Buf, int64(ca.Buf.Len()), "/etc/docker/"+ca.Name, 0644); err != nil {
 		return err
 	}
 	fmt.Println(cfg.Server, "- CA sent")
@@ -265,44 +177,6 @@ func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
 	fmt.Println(cfg.Server, "- Started Docker Engine")
 
 	return nil
-}
-
-func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
-	usr, err := user.Current()
-	if err != nil {
-		return // Unable to determine user
-	}
-	org = c.Parent().String("organization")
-	certpath = c.Parent().String("certpath")
-	certpath = strings.Replace(certpath, "~", usr.HomeDir, 1)
-	certpath, err = path.Abs(certpath)
-	if err != nil {
-		return
-	}
-	err = os.MkdirAll(certpath, 0700)
-	return
-}
-
-func generateServerCertificate(c *cli.Context) (ca, cert, key *PemBlock) {
-	var hosts = make([]string, 0)
-	if hostname := c.String("host"); hostname == "" {
-		fmt.Println("You must provide hostname to create Certificate for")
-		os.Exit(1)
-	} else {
-		hosts = append(hosts, hostname)
-	}
-	hosts = append(hosts, c.StringSlice("altname")...)
-	org, certpath, err := parseCertArgs(c)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	ca, cert, key, err = GenerateServerCertificate(certpath, org, hosts)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return
 }
 
 func GenerateServerCertificate(certpath, org string, hosts []string) (ca, cert, key *PemBlock, err error) {
@@ -324,74 +198,83 @@ func GenerateServerCertificate(certpath, org string, hosts []string) (ca, cert, 
 	return
 }
 
-func NewCommand() cli.Command {
-	return cli.Command{
-		Name:  "tls",
-		Usage: "Utility for generating certificate for TLS",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
-			cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
-		},
-		Subcommands: []cli.Command{
-			{
-				Name:  "bootstrap",
-				Usage: "Generate certificate for TLS",
-				Action: func(c *cli.Context) {
-					org, certpath, err := parseCertArgs(c)
-					if err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					gencacert(c, org, certpath)
-					gencert(c, org, certpath)
-				},
-			},
-			{
-				Name:  "generate",
-				Usage: "Generate server certificate with self-signed CA",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
-					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-				},
-				Action: func(c *cli.Context) {
-					_, cert, key := generateServerCertificate(c)
-					if err := ioutil.WriteFile(cert.name, cert.buf.Bytes(), 0644); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := ioutil.WriteFile(key.name, key.buf.Bytes(), 0600); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-				},
-			},
-			{
-				Name:  "docker-engine-cert",
-				Usage: "Generate and install certificate for Docker Enginea",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
-					cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-					cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-				},
-				Action: func(c *cli.Context) {
-					var (
-						user    = c.String("user")
-						privKey = c.String("cert")
-						host    = c.String("host")
+func GenerateCACertificate(org, certpath string) {
+	tmpl, err := NewX509Certificate(org)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	tmpl.IsCA = true
+	tmpl.KeyUsage |= x509.KeyUsageCertSign
+	tmpl.KeyUsage |= x509.KeyUsageKeyEncipherment
+	tmpl.KeyUsage |= x509.KeyUsageKeyAgreement
 
-						ssh_config = ssh.Config{User: user, Server: host, Key: privKey, Port: "22"}
-					)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
-					ca, cert, key := generateServerCertificate(c)
-					fmt.Println(host, "- generated certificate")
+	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
-					if err := SendEngineCertificate(ca, cert, key, ssh_config); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-				},
-			},
-		},
+	err = WriteCertificate(path.Join(certpath, "ca.pem"), derBytes)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	err = WriteKey(path.Join(certpath, "ca-key.pem"), priv)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+}
+
+func GenerateClientCertificate(org, certpath string) {
+	tmpl, err := NewX509Certificate(org)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
+
+	caCert, err := LoadCACert(certpath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	err = WriteCertificate(path.Join(certpath, "cert.pem"), derBytes)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	err = WriteKey(path.Join(certpath, "key.pem"), priv)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
 	}
 }

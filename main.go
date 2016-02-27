@@ -16,6 +16,10 @@ func main() {
 	}
 	app.Commands = []cli.Command{
 		CreateCommand(),
+		ImageCommand(),
+		ConfigCommand(),
+		ExecCommand(),
+		TlsCommand(),
 	}
 	app.Before = nil
 	app.Action = nil

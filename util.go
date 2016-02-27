@@ -1,10 +1,15 @@
-package ssh
+package main
 
 import (
+	"github.com/jeffjen/machine/lib/cert"
+	"github.com/jeffjen/machine/lib/ssh"
+
 	"github.com/codegangsta/cli"
 
 	"fmt"
-	"path"
+	"os"
+	"os/user"
+	path "path/filepath"
 	"strings"
 )
 
@@ -20,7 +25,7 @@ func runCmd(c *cli.Context) {
 	)
 	for _, host := range hosts {
 		go func(host string) {
-			sshctx := New(Config{User: user, Server: host, Key: key, Port: "22"})
+			sshctx := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
 			resp, err := sshctx.Run(cmd)
 			if err != nil {
 				fmt.Println(err.Error())
@@ -46,12 +51,12 @@ func runScript(c *cli.Context) {
 	for _, host := range hosts {
 		go func(host string) {
 			var (
-				respStream <-chan Response
+				respStream <-chan ssh.Response
 				err        error
 
 				text string
 			)
-			sshctx := New(Config{User: user, Server: host, Key: key, Port: "22"})
+			sshctx := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
 			for _, script := range scripts {
 				dst := path.Join("/tmp", path.Base(script))
 				if err = sshctx.CopyFile(script, dst, 0644); err != nil {
@@ -92,29 +97,40 @@ func runScript(c *cli.Context) {
 	}
 }
 
-func NewCommand() cli.Command {
-	return cli.Command{
-		Name:  "exec",
-		Usage: "Invoke command on remote host via SSH",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-			cli.StringSliceFlag{Name: "host", Usage: "Remote host to run command in"},
-		},
-		Subcommands: []cli.Command{
-			{
-				Name:   "run",
-				Usage:  "Invoke command from argument",
-				Action: runCmd,
-			},
-			{
-				Name:  "script",
-				Usage: "Invoke script from argument",
-				Flags: []cli.Flag{
-					cli.BoolFlag{Name: "sudo", Usage: "Run as sudo for this session"},
-				},
-				Action: runScript,
-			},
-		},
+func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
+	usr, err := user.Current()
+	if err != nil {
+		return // Unable to determine user
 	}
+	org = c.Parent().String("organization")
+	certpath = c.Parent().String("certpath")
+	certpath = strings.Replace(certpath, "~", usr.HomeDir, 1)
+	certpath, err = path.Abs(certpath)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(certpath, 0700)
+	return
+}
+
+func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock) {
+	var hosts = make([]string, 0)
+	if hostname := c.String("host"); hostname == "" {
+		fmt.Println("You must provide hostname to create Certificate for")
+		os.Exit(1)
+	} else {
+		hosts = append(hosts, hostname)
+	}
+	hosts = append(hosts, c.StringSlice("altname")...)
+	org, certpath, err := parseCertArgs(c)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	return
 }
