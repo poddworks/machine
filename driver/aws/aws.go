@@ -57,22 +57,12 @@ func NewConfigCommand() cli.Command {
 	return cli.Command{
 		Name:  "aws",
 		Usage: "Bootstrap AWS environment",
-		Flags: appendFlag(
-			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
-			cli.StringFlag{Name: "vpc-id", Value: "default", Usage: "AWS VPC identifier"},
-		),
-		Before: before,
-		Action: func(c *cli.Context) {
-			var profile = make(AWSProfile)
-			defer profile.Load().Dump()
-			p := &Profile{Name: c.String("name"), Region: *sess.Config.Region}
-			vpcInit(c, &p.VPC)
-			amiInit(c, &p.VPC)
-			if _, ok := profile[p.Region]; !ok {
-				profile[p.Region] = make(RegionProfile)
-			}
-			profile[p.Region][p.Name] = p
+		Flags: flags,
+		Subcommands: []cli.Command{
+			syncFromAWS(),
+			getFromAWSConfig(),
 		},
+		Before: before,
 	}
 }
 
