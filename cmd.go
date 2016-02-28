@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/jeffjen/machine/driver/aws"
 	"github.com/jeffjen/machine/lib/cert"
-	"github.com/jeffjen/machine/lib/machine"
+	mach "github.com/jeffjen/machine/lib/machine"
 	"github.com/jeffjen/machine/lib/ssh"
 
 	"github.com/codegangsta/cli"
@@ -11,11 +11,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sync"
+	"os/user"
+	"strings"
 )
 
 var (
-	hosts machine.Hosts
+	host mach.Host
 )
 
 const (
@@ -34,53 +35,18 @@ func CreateCommand() cli.Command {
 			cli.BoolTFlag{Name: "is-docker-engine", Usage: "Launched instance a Docker Engine"},
 		},
 		Subcommands: []cli.Command{
-			aws.NewCreateCommand(&hosts),
+			aws.NewCreateCommand(&host),
 		},
-		After: func(c *cli.Context) error {
-			const (
-				CertPath     = "/home/yihungjen/.machine"
-				Organization = "podd.org"
-			)
-
-			var (
-				useDocker = c.BoolT("is-docker-engine")
-
-				wg sync.WaitGroup
-			)
-
-			if !useDocker {
-				return nil // not a Docker Engine; abort
+		Before: func(c *cli.Context) error {
+			usr, err := user.Current()
+			if err == nil {
+				host.CertPath = strings.Replace(DEFAULT_CERT_PATH, "~", usr.HomeDir, 1)
+				host.Organization = DEFAULT_ORGANIZATION_PLACEMENT_NAME
+				host.User = c.String("user")
+				host.Cert = c.String("cert")
+				host.IsDocker = c.BoolT("is-docker-engine")
 			}
-
-			wg.Add(len(hosts.IpAddrs))
-			for _, addr := range hosts.IpAddrs {
-				go func(addr machine.IpAddr) {
-					defer wg.Done()
-					subAltNames := []string{addr.Pub, addr.Priv, "localhost", "127.0.0.1"}
-					fmt.Println(addr.Pub, "- generate cert for subjects -", subAltNames)
-					CA, Cert, Key, err := cert.GenerateServerCertificate(CertPath, Organization, subAltNames)
-					if err != nil {
-						fmt.Fprintln(os.Stderr, err.Error())
-						return
-					}
-
-					ssh_config := ssh.Config{
-						User:   c.String("user"),
-						Server: addr.Pub,
-						Key:    c.String("cert"),
-						Port:   "22",
-					}
-					fmt.Println(addr.Pub, "- configure docker engine")
-					err = cert.SendEngineCertificate(CA, Cert, Key, ssh_config)
-					if err != nil {
-						fmt.Fprintln(os.Stderr, err.Error())
-						return
-					}
-				}(addr)
-			}
-			wg.Wait()
-
-			return nil
+			return err
 		},
 	}
 }

@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/jeffjen/machine/lib/machine"
+	mach "github.com/jeffjen/machine/lib/machine"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -121,7 +121,7 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, hosts *machine.Hosts) {
+func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
 	var (
 		amiId            = c.String("instance-ami-id")
 		keyName          = c.String("instance-key")
@@ -224,7 +224,15 @@ func newEC2Inst(c *cli.Context, profile *Profile, hosts *machine.Hosts) {
 			wg.Add(len(instances))
 			for _, inst := range instances {
 				go func(ch <-chan ec2state) {
-					out <- <-ch
+					state := <-ch
+					if state.err == nil {
+						addr := mach.IpAddr{
+							Pub:  *state.PublicIpAddress,
+							Priv: *state.PrivateIpAddress,
+						}
+						state.err = host.InstallDockerEngineCertificate(addr)
+					}
+					out <- state
 					wg.Done()
 				}(ec2_WaitForReady(inst.InstanceId))
 			}
@@ -234,11 +242,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, hosts *machine.Hosts) {
 	}
 	for state := range waitForReady(resp.Instances...) {
 		if state.err == nil {
-			fmt.Println(*state.InstanceId, "- ready -", *state.PublicIpAddress, *state.PrivateIpAddress)
-			hosts.IpAddrs = append(hosts.IpAddrs, machine.IpAddr{
-				Pub:  *state.PublicIpAddress,
-				Priv: *state.PrivateIpAddress,
-			})
+			fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 		} else {
 			fmt.Fprintln(os.Stderr, state.err.Error())
 		}

@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/jeffjen/machine/lib/machine"
+	mach "github.com/jeffjen/machine/lib/machine"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -76,7 +76,7 @@ func NewConfigCommand() cli.Command {
 	}
 }
 
-func NewCreateCommand(hosts *machine.Hosts) cli.Command {
+func NewCreateCommand(host *mach.Host) cli.Command {
 	return cli.Command{
 		Name:  "aws",
 		Usage: "Create a new EC2 instance",
@@ -107,7 +107,7 @@ func NewCreateCommand(hosts *machine.Hosts) cli.Command {
 				fmt.Println("Unable to find matching VPC profile")
 				os.Exit(1)
 			} else {
-				newEC2Inst(c, p, hosts)
+				newEC2Inst(c, p, host)
 			}
 		},
 	}
