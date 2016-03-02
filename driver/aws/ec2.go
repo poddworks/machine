@@ -226,11 +226,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
 				go func(ch <-chan ec2state) {
 					state := <-ch
 					if state.err == nil {
-						addr := mach.IpAddr{
-							Pub:  *state.PublicIpAddress,
-							Priv: *state.PrivateIpAddress,
-						}
-						state.err = host.InstallDockerEngineCertificate(addr)
+						state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
 					}
 					out <- state
 					wg.Done()

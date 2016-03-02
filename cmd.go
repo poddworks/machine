@@ -4,7 +4,6 @@ import (
 	"github.com/jeffjen/machine/driver/aws"
 	"github.com/jeffjen/machine/lib/cert"
 	mach "github.com/jeffjen/machine/lib/machine"
-	"github.com/jeffjen/machine/lib/ssh"
 
 	"github.com/codegangsta/cli"
 
@@ -148,24 +147,19 @@ func TlsCommand() cli.Command {
 					cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
+				Before: func(c *cli.Context) error {
+					usr, err := user.Current()
+					if err == nil {
+						host.CertPath = strings.Replace(DEFAULT_CERT_PATH, "~", usr.HomeDir, 1)
+						host.Organization = DEFAULT_ORGANIZATION_PLACEMENT_NAME
+						host.User = c.String("user")
+						host.Cert = c.String("cert")
+						host.IsDocker = true
+					}
+					return err
+				},
 				Action: func(c *cli.Context) {
-					var (
-						user    = c.String("user")
-						privKey = c.String("cert")
-						host    = c.String("host")
-
-						ssh_config = ssh.Config{
-							User:   user,
-							Server: host,
-							Key:    privKey,
-							Port:   "22",
-						}
-					)
-
-					CA, Cert, Key := generateServerCertificate(c)
-					fmt.Println(host, "- generated certificate")
-
-					err := cert.SendEngineCertificate(CA, Cert, Key, ssh_config)
+					err := host.InstallDockerEngineCertificate(c.String("host"), c.StringSlice("altname")...)
 					if err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
