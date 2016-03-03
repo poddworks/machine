@@ -50,33 +50,26 @@ func runScript(c *cli.Context) {
 	)
 	for _, host := range hosts {
 		go func(host string) {
-			var (
-				respStream <-chan ssh.Response
-				err        error
-
-				text string
-			)
-			sshctx := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
+			cmdr := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
+			if sudo {
+				cmdr = cmdr.Sudo()
+			}
 			for _, script := range scripts {
 				dst := path.Join("/tmp", path.Base(script))
-				if err = sshctx.CopyFile(script, dst, 0644); err != nil {
+				if err := cmdr.CopyFile(script, dst, 0644); err != nil {
 					fmt.Println(err.Error())
 					collect <- err
 					return
 				}
 				fmt.Println(host, "- sent script", script, "->", dst)
-				if sudo {
-					respStream, err = sshctx.Sudo().Stream("bash " + dst)
-				} else {
-					respStream, err = sshctx.Stream("bash " + dst)
-				}
+				respStream, err := cmdr.Stream("bash " + dst)
 				if err != nil {
 					fmt.Println(err.Error())
 					collect <- err
 					return
 				}
 				for output := range respStream {
-					text, err = output.Data()
+					text, err := output.Data()
 					if err != nil {
 						fmt.Println(host, "-", err.Error())
 						// steam will end because error state delivers last
