@@ -52,7 +52,7 @@ func CreateCommand() cli.Command {
 
 func ImageCommand() cli.Command {
 	return cli.Command{
-		Name:  "register-image",
+		Name:  "register",
 		Usage: "Register Virtual Machine image",
 		Subcommands: []cli.Command{
 			aws.NewImageCommand(),
