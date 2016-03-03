@@ -1,8 +1,6 @@
 package cert
 
 import (
-	"github.com/jeffjen/machine/lib/ssh"
-
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -129,54 +127,6 @@ func NewPemBlock(name string, block []byte) *PemBlock {
 		Name: name,
 		Buf:  bytes.NewBuffer(block),
 	}
-}
-
-func SendEngineCertificate(ca, cert, key *PemBlock, cfg ssh.Config) error {
-	const attempts = 5
-
-	var sudo = ssh.New(cfg).Sudo()
-
-	// Wait for SSH daemon online
-	var idx = 0
-	for ; idx < attempts; idx++ {
-		if _, err := sudo.Run("date"); err == nil {
-			break
-		}
-		time.Sleep(5 * time.Second)
-	}
-	if idx == attempts {
-		return fmt.Errorf("%s - Unable to contact remote", cfg.Server)
-	}
-
-	if err := sudo.Copy(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
-		return err
-	}
-	fmt.Println(cfg.Server, "- Cert sent")
-
-	if err := sudo.Copy(key.Buf, int64(key.Buf.Len()), "/etc/docker/"+key.Name, 0600); err != nil {
-		return err
-	}
-	fmt.Println(cfg.Server, "- Key sent")
-
-	if err := sudo.Copy(ca.Buf, int64(ca.Buf.Len()), "/etc/docker/"+ca.Name, 0644); err != nil {
-		return err
-	}
-	fmt.Println(cfg.Server, "- CA sent")
-
-	if err := sudo.ConfigureDockerTLS(); err != nil {
-		return err
-	}
-	fmt.Println(cfg.Server, "- Configured Docker Engine")
-
-	sudo.StopDocker()
-	fmt.Println(cfg.Server, "- Stopped Docker Engine")
-
-	if err := sudo.StartDocker(); err != nil {
-		return err
-	}
-	fmt.Println(cfg.Server, "- Started Docker Engine")
-
-	return nil
 }
 
 func GenerateServerCertificate(certpath, org string, hosts []string) (ca, cert, key *PemBlock, err error) {

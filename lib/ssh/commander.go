@@ -1,109 +1,18 @@
 package ssh
 
 import (
-	"github.com/jeffjen/machine/lib/docker"
-
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strings"
 	"sync"
 )
-
-var (
-	ErrCopyNotRegular = errors.New("Can only copy regular file")
-)
-
-type Response struct {
-	text string
-	err  error
-}
-
-func (r Response) Data() (string, error) {
-	return r.text, r.err
-}
-
-func getFileMode(m os.FileMode) (string, error) {
-	if !m.IsRegular() {
-		return "", ErrCopyNotRegular
-	}
-	perm := m.Perm() // retrieve permission
-	return fmt.Sprintf("C0%d%d%d", perm&0700>>6, perm&0070>>3, perm&0007), nil
-}
-
-type Commander interface {
-	// Load file from target to here
-	Load(target string, here io.Writer) error
-
-	// Load file from target to here
-	LoadFile(target, here string, mode os.FileMode) error
-
-	// Copy file from src to dst
-	Copy(src io.Reader, size int64, dst string, mode os.FileMode) error
-
-	// Copy file from src to dst
-	CopyFile(src, dst string, mode os.FileMode) error
-
-	// Create full directory
-	Mkdir(path string) error
-
-	// Run command and retreive combinded output
-	Run(cmd string) (output string, err error)
-
-	// Run command and stream combined output
-	Stream(cmd string) (output <-chan Response, err error)
-
-	// Elevate commander role
-	Sudo() SudoCommander
-}
-
-type SudoCommander interface {
-	Commander
-
-	// Utility with Docker Engine control
-	ConfigureDockerTLS() error
-	StartDocker() error
-	StopDocker() error
-}
-
-type Config struct {
-	User     string
-	Server   string
-	Key      string
-	Port     string
-	Password string
-}
-
-func (cfg Config) GetKeyFile() (ssh.Signer, error) {
-	usr, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	keyfile := strings.Replace(cfg.Key, "~", usr.HomeDir, 1)
-	keyfile, err = filepath.Abs(keyfile)
-	if err != nil {
-		return nil, err
-	}
-	buf, err := ioutil.ReadFile(keyfile)
-	if err != nil {
-		return nil, err
-	}
-	pubkey, err := ssh.ParsePrivateKey(buf)
-	if err != nil {
-		return nil, err
-	}
-	return pubkey, nil
-}
 
 type SSHCommander struct {
 	ssh_config *ssh.ClientConfig
@@ -120,7 +29,11 @@ func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
 	}
 }
 
-func (sshCmd *SSHCommander) Sudo() SudoCommander {
+func (sshCmd *SSHCommander) Host() string {
+	return sshCmd.addr
+}
+
+func (sshCmd *SSHCommander) Sudo() Commander {
 	sshCmd.sudo = true
 	return sshCmd
 }
@@ -295,59 +208,6 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 	} else {
 		return output, nil
 	}
-}
-
-func (sshCmd *SSHCommander) ConfigureDockerTLS() error {
-	const (
-		daemonPath = "/etc/docker/daemon.json"
-
-		CAPem   = "/etc/docker/ca.pem"
-		CertPem = "/etc/docker/server-cert.pem"
-		KeyPem  = "/etc/docker/server-key.pem"
-	)
-
-	var (
-		dOpts *docker.DaemonConfig
-
-		buf = new(bytes.Buffer)
-	)
-
-	err := sshCmd.Load(daemonPath, buf)
-	if err != nil {
-		return err
-	}
-	dOpts, err = docker.LoadDaemonConfig(buf.Bytes())
-	if err != nil {
-		return err
-	}
-	dOpts.AddHost("tcp://0.0.0.0:2375")
-	dOpts.TlsVerify = true
-	dOpts.TlsCACert = CAPem
-	dOpts.TlsCert = CertPem
-	dOpts.TlsKey = KeyPem
-	if r, err := dOpts.Reader(); err != nil {
-		return err
-	} else {
-		return sshCmd.Copy(r, int64(r.Len()), daemonPath, 0600)
-	}
-}
-
-func (sshCmd *SSHCommander) StartDocker() error {
-	session, err := sshCmd.connect()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	return session.Run("sudo service docker start")
-}
-
-func (sshCmd *SSHCommander) StopDocker() error {
-	session, err := sshCmd.connect()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	return session.Run("sudo service docker stop")
 }
 
 func New(cfg Config) Commander {
