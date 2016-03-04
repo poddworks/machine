@@ -28,7 +28,7 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 		return nil
 	}
 	ssh_config := ssh.Config{User: h.User, Server: host, Key: h.Cert, Port: "22"}
-	h.cmdr = ssh.New(ssh_config).Sudo()
+	h.cmdr = ssh.New(ssh_config)
 
 	var subAltNames = []string{
 		host,
@@ -36,13 +36,15 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 		"127.0.0.1",
 	}
 	subAltNames = append(subAltNames, altname...)
-	fmt.Println(host, "- generate cert for subjects -", subAltNames)
 
+	fmt.Println(host, "- generate cert for subjects -", subAltNames)
 	CA, Cert, Key, err := cert.GenerateServerCertificate(h.CertPath, h.Organization, subAltNames)
 	if err != nil {
 		return err
 	}
+
 	fmt.Println(host, "- configure docker engine")
+	h.cmdr.Sudo()
 	return h.sendEngineCertificate(CA, Cert, Key)
 }
 

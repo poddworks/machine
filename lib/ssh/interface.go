@@ -30,6 +30,11 @@ type Commander interface {
 	// Run command and stream combined output
 	Stream(cmd string) (output <-chan Response, err error)
 
-	// Elevate commander role
-	Sudo() Commander
+	// Elevate commander role and return a Deferr Target
+	Sudo() SudoSession
+}
+
+type SudoSession interface {
+	// Step down from sudo status
+	StepDown()
 }

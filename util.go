@@ -52,7 +52,7 @@ func runScript(c *cli.Context) {
 		go func(host string) {
 			cmdr := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
 			if sudo {
-				cmdr = cmdr.Sudo()
+				cmdr.Sudo()
 			}
 			for _, script := range scripts {
 				dst := path.Join("/tmp", path.Base(script))

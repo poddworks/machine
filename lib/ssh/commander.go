@@ -33,9 +33,13 @@ func (sshCmd *SSHCommander) Host() string {
 	return sshCmd.addr
 }
 
-func (sshCmd *SSHCommander) Sudo() Commander {
+func (sshCmd *SSHCommander) Sudo() SudoSession {
 	sshCmd.sudo = true
 	return sshCmd
+}
+
+func (sshCmd *SSHCommander) StepDown() {
+	sshCmd.sudo = false
 }
 
 func (sshCmd *SSHCommander) Load(target string, here io.Writer) error {
