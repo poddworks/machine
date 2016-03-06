@@ -38,9 +38,6 @@ type Action struct {
 }
 
 func (a Action) Act(cmdr Commander) (output <-chan Response, err error) {
-	if a.Sudo {
-		defer cmdr.Sudo().StepDown()
-	}
 	switch {
 	case a.Cmd != "":
 		output, err = cmdr.Stream(a.Cmd)
@@ -49,6 +46,9 @@ func (a Action) Act(cmdr Commander) (output <-chan Response, err error) {
 		dst := path.Join("/tmp", path.Base(a.Script))
 		err = cmdr.CopyFile(a.Script, dst, 0644)
 		if err == nil {
+			if a.Sudo {
+				defer cmdr.Sudo().StepDown()
+			}
 			output, err = cmdr.Stream(fmt.Sprintf("bash %s", dst))
 		}
 		break
