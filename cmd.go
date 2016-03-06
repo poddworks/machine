@@ -93,6 +93,11 @@ func ExecCommand() cli.Command {
 				},
 				Action: runScript,
 			},
+			{
+				Name:   "playbook",
+				Usage:  "Go through the playbook",
+				Action: runPlaybook,
+			},
 		},
 	}
 }

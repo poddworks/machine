@@ -5,8 +5,10 @@ import (
 	"github.com/jeffjen/machine/lib/ssh"
 
 	"github.com/codegangsta/cli"
+	"gopkg.in/yaml.v2"
 
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	path "path/filepath"
@@ -68,8 +70,9 @@ func runScript(c *cli.Context) {
 					collect <- err
 					return
 				}
+				var text string
 				for output := range respStream {
-					text, err := output.Data()
+					text, err = output.Data()
 					if err != nil {
 						fmt.Println(host, "-", err.Error())
 						// steam will end because error state delivers last
@@ -77,12 +80,80 @@ func runScript(c *cli.Context) {
 						fmt.Println(host, "-", text)
 					}
 				}
-				if err != nil { // abort execution if script failed
+				// abort if script execution failed
+				if err != nil {
 					collect <- err
 					return
 				}
 			}
 			collect <- nil // mark end of script run
+		}(host)
+	}
+	for chk := 0; chk < len(hosts); chk++ {
+		<-collect
+	}
+}
+
+func runPlaybook(c *cli.Context) {
+	var (
+		collect          = make(chan error)
+		user, key, hosts = parseArgs(c.Parent())
+	)
+
+	if len(c.Args()) == 0 {
+		fmt.Println("No playbook specified")
+		os.Exit(1)
+	}
+
+	content, err := ioutil.ReadFile(c.Args()[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	var playbook ssh.Recipe
+	err = yaml.Unmarshal(content, &playbook)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	for _, host := range hosts {
+		go func(host string) {
+			cmdr := ssh.New(ssh.Config{User: user, Server: host, Key: key, Port: "22"})
+			fmt.Println(host, "-", "sending archive to remote")
+			if err := playbook.Archive.Send(cmdr); err != nil {
+				fmt.Fprintln(os.Stderr, host, "-", err.Error())
+				collect <- err
+				return
+			}
+			for _, p := range playbook.Provision {
+				fmt.Println(host, "-", "playbook section", "-", p.Name)
+				for _, a := range p.Action {
+					respStream, err := a.Act(cmdr)
+					if err != nil {
+						fmt.Fprintln(os.Stderr, host, "-", err.Error())
+						collect <- err
+						return
+					}
+					var text string
+					for output := range respStream {
+						text, err = output.Data()
+						if err != nil {
+							fmt.Fprintln(os.Stderr, host, "-", err.Error())
+							// steam will end because error state delivers last
+						} else {
+							fmt.Println(host, "-", text)
+						}
+					}
+					// abort if action failed and its not okay to fail
+					if err != nil && !p.Ok2fail {
+						collect <- err
+						return
+					}
+				}
+			}
+			collect <- nil // mark end of playbook
 		}(host)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
