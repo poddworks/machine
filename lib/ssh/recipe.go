@@ -10,7 +10,7 @@ const (
 )
 
 type Recipe struct {
-	Archive   `yaml:"archive"`
+	Archive   `yaml:"archive,omitempty"`
 	Provision []Provision `yaml:"provision"`
 }
 
@@ -30,15 +30,15 @@ func (a Archive) Send(cmdr Commander) error {
 }
 
 type Provision struct {
-	Archive `yaml:"archive"`
+	Archive `yaml:"archive,omitempty"`
 	Name    string   `yaml:"name"`
 	Ok2fail bool     `yaml:"ok2fail"`
 	Action  []Action `yaml:"action"`
 }
 
 type Action struct {
-	Cmd    string `yaml:"cmd"`
-	Script string `yaml:"script"`
+	Cmd    string `yaml:"cmd,omitempty"`
+	Script string `yaml:"script,omitempty"`
 	Sudo   bool   `yaml:"sudo"`
 }
 
