@@ -126,20 +126,26 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 
 	for _, p := range playbook.Provision {
 		fmt.Println(host, "-", "playbook section", "-", p.Name)
+		fmt.Println(host, "-", p.Name, "-", "sending archive to remote")
+		if err := p.Archive.Send(cmdr); err != nil {
+			fmt.Fprintln(os.Stderr, host, "-", err.Error())
+			collect <- err
+			return
+		}
 		for _, a := range p.Action {
 			respStream, err := a.Act(cmdr)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, host, "-", err.Error())
+				fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err.Error())
 				collect <- err
 				return
 			}
 			for output := range respStream {
 				text, err = output.Data()
 				if err != nil {
-					fmt.Fprintln(os.Stderr, host, "-", err.Error())
+					fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err.Error())
 					// steam will end because error state delivers last
 				} else {
-					fmt.Println(host, "-", text)
+					fmt.Println(host, "-", p.Name, "-", text)
 				}
 			}
 			// abort if action failed and its not okay to fail
