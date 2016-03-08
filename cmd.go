@@ -22,6 +22,8 @@ const (
 	DEFAULT_CERT_PATH = "~/.machine"
 
 	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
+
+	DEFAULT_MACHINE_PORT = "22"
 )
 
 func CreateCommand() cli.Command {
@@ -77,6 +79,7 @@ func ExecCommand() cli.Command {
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
 			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
+			cli.StringFlag{Name: "port", EnvVar: "MACHINE_PORT", Value: DEFAULT_MACHINE_PORT, Usage: "Private key to use in Authentication"},
 			cli.StringSliceFlag{Name: "host", Usage: "Remote host to run command in"},
 		},
 		Subcommands: []cli.Command{

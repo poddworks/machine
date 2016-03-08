@@ -12,17 +12,17 @@ import (
 	"strings"
 )
 
-func parseArgs(c *cli.Context) (user, key string, hosts []string) {
-	return c.String("user"), c.String("cert"), c.StringSlice("host")
+func parseArgs(c *cli.Context) (user, key, port string, hosts []string) {
+	return c.String("user"), c.String("cert"), c.String("port"), c.StringSlice("host")
 }
 
 func runCmd(c *cli.Context) {
 	var (
-		cmd              = strings.Join(c.Args(), " ")
-		collect          = make(chan error)
-		user, key, hosts = parseArgs(c.Parent())
+		cmd                    = strings.Join(c.Args(), " ")
+		collect                = make(chan error)
+		user, key, port, hosts = parseArgs(c.Parent())
 
-		sshCfg   = ssh.Config{User: user, Key: key, Port: "22"}
+		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
 		playbook = ssh.Recipe{}
 	)
 
@@ -45,12 +45,12 @@ func runCmd(c *cli.Context) {
 
 func runScript(c *cli.Context) {
 	var (
-		scripts          = c.Args()
-		collect          = make(chan error)
-		sudo             = c.Bool("sudo")
-		user, key, hosts = parseArgs(c.Parent())
+		scripts                = c.Args()
+		collect                = make(chan error)
+		sudo                   = c.Bool("sudo")
+		user, key, port, hosts = parseArgs(c.Parent())
 
-		sshCfg   = ssh.Config{User: user, Key: key, Port: "22"}
+		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
 		playbook = ssh.Recipe{}
 	)
 
@@ -75,10 +75,10 @@ func runScript(c *cli.Context) {
 
 func runPlaybook(c *cli.Context) {
 	var (
-		collect          = make(chan error)
-		user, key, hosts = parseArgs(c.Parent())
+		collect                = make(chan error)
+		user, key, port, hosts = parseArgs(c.Parent())
 
-		sshCfg   = ssh.Config{User: user, Key: key, Port: "22"}
+		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
 		playbook ssh.Recipe
 	)
 
