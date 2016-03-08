@@ -15,11 +15,15 @@ type Recipe struct {
 }
 
 type Archive struct {
+	Sudo      bool     `yaml:"sudo:`
 	RemoteDir string   `yaml:"dir"`
 	Local     []string `yaml:"local"`
 }
 
 func (a Archive) Send(cmdr Commander) error {
+	if a.Sudo {
+		defer cmdr.Sudo().StepDown()
+	}
 	for _, local := range a.Local {
 		dst := path.Join(a.RemoteDir, path.Base(local))
 		if err := cmdr.CopyFile(local, dst, 0644); err != nil {
