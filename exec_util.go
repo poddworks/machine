@@ -117,20 +117,24 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 		host = cmdr.Host()
 	)
 
-	fmt.Println(host, "-", "sending archive to remote")
-	if err := playbook.Archive.Send(cmdr); err != nil {
-		fmt.Fprintln(os.Stderr, host, "-", err.Error())
-		collect <- err
-		return
+	for _, a := range playbook.Archive {
+		fmt.Println(host, "-", "sending", a.Src, "to remote")
+		if err := a.Send(cmdr); err != nil {
+			fmt.Fprintln(os.Stderr, host, "-", err.Error())
+			collect <- err
+			return
+		}
 	}
 
 	for _, p := range playbook.Provision {
 		fmt.Println(host, "-", "playbook section", "-", p.Name)
-		fmt.Println(host, "-", p.Name, "-", "sending archive to remote")
-		if err := p.Archive.Send(cmdr); err != nil {
-			fmt.Fprintln(os.Stderr, host, "-", err.Error())
-			collect <- err
-			return
+		for _, a := range p.Archive {
+			fmt.Println(host, "-", p.Name, "-", "sending", a.Src, "to remote")
+			if err := a.Send(cmdr); err != nil {
+				fmt.Fprintln(os.Stderr, host, "-", err.Error())
+				collect <- err
+				return
+			}
 		}
 		for _, a := range p.Action {
 			respStream, err := a.Act(cmdr)

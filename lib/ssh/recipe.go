@@ -10,34 +10,37 @@ const (
 )
 
 type Recipe struct {
-	Archive   `yaml:"archive,omitempty"`
+	Archive   []Archive   `yaml:"archive,omitempty"`
 	Provision []Provision `yaml:"provision"`
 }
 
+type FileSpec struct {
+	Rename string `yaml:"rename"`
+}
+
 type Archive struct {
-	Sudo      bool     `yaml:"sudo:`
-	RemoteDir string   `yaml:"dir"`
-	Local     []string `yaml:"local"`
+	Src  string `yaml:"src"`
+	Dst  string `yaml:"dst"`
+	Dir  string `yaml:"dir"`
+	Sudo bool   `yaml:"sudo:`
 }
 
 func (a Archive) Send(cmdr Commander) error {
 	if a.Sudo {
 		defer cmdr.Sudo().StepDown()
 	}
-	for _, local := range a.Local {
-		dst := path.Join(a.RemoteDir, path.Base(local))
-		if err := cmdr.CopyFile(local, dst, 0644); err != nil {
-			return err
-		}
+	if a.Dst == "" {
+		a.Dst = path.Base(a.Src)
 	}
-	return nil
+	dst := path.Join(a.Dir, a.Dst)
+	return cmdr.CopyFile(a.Src, dst, 0644)
 }
 
 type Provision struct {
-	Archive `yaml:"archive,omitempty"`
-	Name    string   `yaml:"name"`
-	Ok2fail bool     `yaml:"ok2fail"`
-	Action  []Action `yaml:"action"`
+	Archive []Archive `yaml:"archive,omitempty"`
+	Name    string    `yaml:"name"`
+	Ok2fail bool      `yaml:"ok2fail"`
+	Action  []Action  `yaml:"action"`
 }
 
 type Action struct {
