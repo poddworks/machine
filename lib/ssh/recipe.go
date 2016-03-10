@@ -14,10 +14,6 @@ type Recipe struct {
 	Provision []Provision `yaml:"provision"`
 }
 
-type FileSpec struct {
-	Rename string `yaml:"rename"`
-}
-
 type Archive struct {
 	Src  string `yaml:"src"`
 	Dst  string `yaml:"dst"`
