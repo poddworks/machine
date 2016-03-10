@@ -3,6 +3,7 @@ package ssh
 import (
 	"fmt"
 	path "path/filepath"
+	"strings"
 )
 
 const (
@@ -15,15 +16,20 @@ type Recipe struct {
 }
 
 type Archive struct {
-	Src  string `yaml:"src"`
-	Dst  string `yaml:"dst"`
-	Dir  string `yaml:"dir"`
-	Sudo bool   `yaml:"sudo:`
+	Perhost bool   `yaml:"perhost"`
+	Src     string `yaml:"src"`
+	Dst     string `yaml:"dst"`
+	Dir     string `yaml:"dir"`
+	Sudo    bool   `yaml:"sudo:`
 }
 
 func (a Archive) Send(cmdr Commander) error {
 	if a.Sudo {
 		defer cmdr.Sudo().StepDown()
+	}
+	if a.Perhost {
+		host, _ := cmdr.Host()
+		a.Src = strings.Replace(a.Src, "$HOST", host, -1)
 	}
 	if a.Dst == "" {
 		a.Dst = path.Base(a.Src)
