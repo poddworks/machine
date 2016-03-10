@@ -7,7 +7,7 @@ import (
 
 type Commander interface {
 	// Report host this Commander connects to
-	Host() string
+	Host() (host, port string)
 
 	// Load file from target to here
 	Load(target string, here io.Writer) error

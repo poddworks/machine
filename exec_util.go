@@ -114,7 +114,7 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 		text string
 
 		// Remote this commander is sending to
-		host = cmdr.Host()
+		host, _ = cmdr.Host()
 	)
 
 	for _, a := range playbook.Archive {

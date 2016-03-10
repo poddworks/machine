@@ -29,8 +29,9 @@ func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
 	}
 }
 
-func (sshCmd *SSHCommander) Host() string {
-	return sshCmd.addr
+func (sshCmd *SSHCommander) Host() (host, port string) {
+	host, port, _ = net.SplitHostPort(sshCmd.addr)
+	return
 }
 
 func (sshCmd *SSHCommander) Sudo() SudoSession {

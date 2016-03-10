@@ -51,6 +51,8 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 func (h *Host) sendEngineCertificate(ca, cert, key *cert.PemBlock) error {
 	const attempts = 5
 
+	host, _ := h.cmdr.Host()
+
 	// Wait for SSH daemon online
 	var idx = 0
 	for ; idx < attempts; idx++ {
@@ -60,36 +62,36 @@ func (h *Host) sendEngineCertificate(ca, cert, key *cert.PemBlock) error {
 		time.Sleep(5 * time.Second)
 	}
 	if idx == attempts {
-		return fmt.Errorf("%s - Unable to contact remote", h.cmdr.Host())
+		return fmt.Errorf("%s - Unable to contact remote", host)
 	}
 
 	if err := h.cmdr.Copy(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
 		return err
 	}
-	fmt.Println(h.cmdr.Host(), "- Cert sent")
+	fmt.Println(host, "- Cert sent")
 
 	if err := h.cmdr.Copy(key.Buf, int64(key.Buf.Len()), "/etc/docker/"+key.Name, 0600); err != nil {
 		return err
 	}
-	fmt.Println(h.cmdr.Host(), "- Key sent")
+	fmt.Println(host, "- Key sent")
 
 	if err := h.cmdr.Copy(ca.Buf, int64(ca.Buf.Len()), "/etc/docker/"+ca.Name, 0644); err != nil {
 		return err
 	}
-	fmt.Println(h.cmdr.Host(), "- CA sent")
+	fmt.Println(host, "- CA sent")
 
 	if err := h.configureDockerTLS(); err != nil {
 		return err
 	}
-	fmt.Println(h.cmdr.Host(), "- Configured Docker Engine")
+	fmt.Println(host, "- Configured Docker Engine")
 
 	h.stopDocker()
-	fmt.Println(h.cmdr.Host(), "- Stopped Docker Engine")
+	fmt.Println(host, "- Stopped Docker Engine")
 
 	if err := h.startDocker(); err != nil {
 		return err
 	}
-	fmt.Println(h.cmdr.Host(), "- Started Docker Engine")
+	fmt.Println(host, "- Started Docker Engine")
 
 	return nil
 }
