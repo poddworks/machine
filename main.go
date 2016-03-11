@@ -11,6 +11,7 @@ func main() {
 	app.Version = "0.0.1"
 	app.Name = "machine"
 	app.Usage = "Create/Bootstrap machine to use with Docker engine"
+	app.EnableBashCompletion = true
 	app.Authors = []cli.Author{
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
