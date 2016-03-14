@@ -34,12 +34,19 @@ func runCmd(c *cli.Context) {
 		},
 	})
 
+	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
 		go exec(collect, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
-		<-collect
+		if e := <-collect; e != nil {
+			errCnt++
+		}
+	}
+	if errCnt > 0 {
+		fmt.Fprintln(os.Stderr, "One or more task failed")
+		os.Exit(1)
 	}
 }
 
@@ -64,12 +71,19 @@ func runScript(c *cli.Context) {
 		})
 	}
 
+	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
 		go exec(collect, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
-		<-collect
+		if e := <-collect; e != nil {
+			errCnt++
+		}
+	}
+	if errCnt > 0 {
+		fmt.Fprintln(os.Stderr, "One or more task failed")
+		os.Exit(1)
 	}
 }
 
@@ -99,12 +113,19 @@ func runPlaybook(c *cli.Context) {
 		os.Exit(1)
 	}
 
+	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
 		go exec(collect, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
-		<-collect
+		if e := <-collect; e != nil {
+			errCnt++
+		}
+	}
+	if errCnt > 0 {
+		fmt.Fprintln(os.Stderr, "One or more task failed")
+		os.Exit(1)
 	}
 }
 
