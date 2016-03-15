@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 )
@@ -95,8 +95,7 @@ func runPlaybook(c *cli.Context) {
 		dryrun                 = c.Parent().Bool("dryrun")
 		user, key, port, hosts = parseArgs(c.Parent())
 
-		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
-		playbook ssh.Recipe
+		sshCfg = ssh.Config{User: user, Key: key, Port: port}
 	)
 
 	if len(c.Args()) == 0 {
@@ -104,31 +103,39 @@ func runPlaybook(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	content, err := ioutil.ReadFile(c.Args()[0])
+	r, err := os.Open(c.Args()[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
+	defer r.Close()
 
-	err = yaml.Unmarshal(content, &playbook)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	var errCnt = 0
-	for _, host := range hosts {
-		sshCfg.Server = host
-		go exec(collect, dryrun, ssh.New(sshCfg), &playbook)
-	}
-	for chk := 0; chk < len(hosts); chk++ {
-		if e := <-collect; e != nil {
-			errCnt++
+	var decoder = yaml.NewDecoder(r)
+	defer decoder.Close()
+	for {
+		playbook := new(ssh.Recipe)
+		if err = decoder.Decode(playbook); err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				fmt.Fprintln(os.Stderr, "Deocoding playbook content error")
+				os.Exit(1)
+			}
 		}
-	}
-	if errCnt > 0 {
-		fmt.Fprintln(os.Stderr, "One or more task failed")
-		os.Exit(1)
+		var errCnt = 0
+		for _, host := range hosts {
+			sshCfg.Server = host
+			go exec(collect, dryrun, ssh.New(sshCfg), playbook)
+		}
+		for chk := 0; chk < len(hosts); chk++ {
+			if e := <-collect; e != nil {
+				errCnt++
+			}
+		}
+		if errCnt > 0 {
+			fmt.Fprintln(os.Stderr, "One or more task failed")
+			os.Exit(1)
+		}
 	}
 }
 
