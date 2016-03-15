@@ -20,6 +20,7 @@ func runCmd(c *cli.Context) {
 	var (
 		cmd                    = strings.Join(c.Args(), " ")
 		collect                = make(chan error)
+		dryrun                 = c.Parent().Bool("dryrun")
 		user, key, port, hosts = parseArgs(c.Parent())
 
 		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
@@ -37,7 +38,7 @@ func runCmd(c *cli.Context) {
 	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
-		go exec(collect, ssh.New(sshCfg), &playbook)
+		go exec(collect, dryrun, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
 		if e := <-collect; e != nil {
@@ -55,6 +56,7 @@ func runScript(c *cli.Context) {
 		scripts                = c.Args()
 		collect                = make(chan error)
 		sudo                   = c.Bool("sudo")
+		dryrun                 = c.Parent().Bool("dryrun")
 		user, key, port, hosts = parseArgs(c.Parent())
 
 		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
@@ -74,7 +76,7 @@ func runScript(c *cli.Context) {
 	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
-		go exec(collect, ssh.New(sshCfg), &playbook)
+		go exec(collect, dryrun, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
 		if e := <-collect; e != nil {
@@ -90,6 +92,7 @@ func runScript(c *cli.Context) {
 func runPlaybook(c *cli.Context) {
 	var (
 		collect                = make(chan error)
+		dryrun                 = c.Parent().Bool("dryrun")
 		user, key, port, hosts = parseArgs(c.Parent())
 
 		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
@@ -116,7 +119,7 @@ func runPlaybook(c *cli.Context) {
 	var errCnt = 0
 	for _, host := range hosts {
 		sshCfg.Server = host
-		go exec(collect, ssh.New(sshCfg), &playbook)
+		go exec(collect, dryrun, ssh.New(sshCfg), &playbook)
 	}
 	for chk := 0; chk < len(hosts); chk++ {
 		if e := <-collect; e != nil {
@@ -129,7 +132,7 @@ func runPlaybook(c *cli.Context) {
 	}
 }
 
-func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
+func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.Recipe) {
 	var (
 		// place holder for command output
 		text string
@@ -139,7 +142,10 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 	)
 
 	for _, a := range playbook.Archive {
-		fmt.Println(host, "-", "sending", a.Src, "to remote")
+		fmt.Println(host, "-", "sending", "-", a.Source(cmdr), "-", a.Dest())
+		if dryrun {
+			continue // skip ahead
+		}
 		if err := a.Send(cmdr); err != nil {
 			fmt.Fprintln(os.Stderr, host, "-", err.Error())
 			collect <- err
@@ -150,7 +156,10 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 	for _, p := range playbook.Provision {
 		fmt.Println(host, "-", "playbook section", "-", p.Name)
 		for _, a := range p.Archive {
-			fmt.Println(host, "-", p.Name, "-", "sending", a.Src, "to remote")
+			fmt.Println(host, "-", p.Name, "-", "sending", "-", a.Source(cmdr), "-", a.Dest())
+			if dryrun {
+				continue // skip ahead
+			}
 			if err := a.Send(cmdr); err != nil {
 				fmt.Fprintln(os.Stderr, host, "-", err.Error())
 				collect <- err
@@ -158,6 +167,10 @@ func exec(collect chan<- error, cmdr ssh.Commander, playbook *ssh.Recipe) {
 			}
 		}
 		for _, a := range p.Action {
+			fmt.Println(host, "-", p.Name, "-", a.Command())
+			if dryrun {
+				continue // skip ahead
+			}
 			respStream, err := a.Act(cmdr)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err.Error())

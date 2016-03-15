@@ -23,6 +23,23 @@ type Archive struct {
 	Sudo    bool   `yaml:"sudo:`
 }
 
+func (a Archive) Source(cmdr Commander) string {
+	if a.Perhost {
+		host, _ := cmdr.Host()
+		return strings.Replace(a.Src, "$HOST", host, -1)
+	} else {
+		return a.Src
+	}
+}
+
+func (a Archive) Dest() string {
+	if a.Dst == "" {
+		return path.Base(a.Src)
+	} else {
+		return a.Dst
+	}
+}
+
 func (a Archive) Send(cmdr Commander) error {
 	if a.Sudo {
 		defer cmdr.Sudo().StepDown()
@@ -49,6 +66,19 @@ type Action struct {
 	Cmd    string `yaml:"cmd,omitempty"`
 	Script string `yaml:"script,omitempty"`
 	Sudo   bool   `yaml:"sudo"`
+}
+
+func (a Action) Command() (cmd string) {
+	switch {
+	case a.Cmd != "":
+		cmd = a.Cmd
+		break
+	case a.Script != "":
+		dst := path.Join(TMP_REMOTE_DIR, path.Base(a.Script))
+		cmd = fmt.Sprintf("bash %s", dst)
+		break
+	}
+	return
 }
 
 func (a Action) Act(cmdr Commander) (output <-chan Response, err error) {
