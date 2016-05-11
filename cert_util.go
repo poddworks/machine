@@ -17,8 +17,14 @@ func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
 	if err != nil {
 		return // Unable to determine user
 	}
-	org = c.Parent().String("organization")
-	certpath = c.Parent().String("certpath")
+	org = c.String("organization")
+	if org == "" {
+		org = c.GlobalString("organization")
+	}
+	certpath = c.String("certpath")
+	if certpath == "" {
+		certpath = c.GlobalString("certpath")
+	}
 	certpath = strings.Replace(certpath, "~", user.HomeDir, 1)
 	certpath, err = path.Abs(certpath)
 	if err != nil {

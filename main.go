@@ -20,6 +20,7 @@ func main() {
 		ImageCommand(),
 		ConfigCommand(),
 		ExecCommand(),
+		EngineCommnd(),
 		TlsCommand(),
 	}
 	app.Before = nil
