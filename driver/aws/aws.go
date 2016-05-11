@@ -66,39 +66,53 @@ func NewConfigCommand() cli.Command {
 	}
 }
 
-func NewCreateCommand(host *mach.Host) cli.Command {
+func NewCreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "aws",
 		Usage: "Create a new EC2 instance",
 		Flags: appendFlag(
 			cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
-			cli.StringFlag{Name: "instance-ami-id", Usage: "EC2 instance AMI ID"},
-			cli.IntFlag{Name: "instance-count", Value: 1, Usage: "EC2 instances to launch in this request"},
-			cli.StringFlag{Name: "instance-key", Usage: "EC2 instance SSH KeyPair"},
-			cli.StringFlag{Name: "instance-profile", Usage: "EC2 IAM Role to apply"},
-			cli.StringSliceFlag{Name: "instance-tag", Usage: "EC2 instance tag in the form field=value"},
-			cli.IntFlag{Name: "instance-root-size", Value: 8, Usage: "EC2 root volume size"},
-			cli.IntSliceFlag{Name: "instance-volume-size", Usage: "EC2 EBS volume size"},
-			cli.StringFlag{Name: "instance-type", Value: "t2.micro", Usage: "EC2 instance type"},
+			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
+			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
+			cli.StringFlag{Name: "ssh-key", Usage: "EC2 instance SSH KeyPair"},
+			cli.StringFlag{Name: "iam-role", Usage: "EC2 IAM Role to apply"},
+			cli.StringSliceFlag{Name: "tag", Usage: "EC2 instance tag in the form field=value"},
+			cli.IntFlag{Name: "root-size", Value: 8, Usage: "EC2 root volume size"},
+			cli.IntSliceFlag{Name: "volume-size", Usage: "EC2 EBS volume size"},
+			cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
 			cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
 			cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
-			cli.StringSliceFlag{Name: "security-group", Usage: "Network security group for user"},
+			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
 		),
 		Before: before,
 		Action: func(c *cli.Context) error {
-			var profile = make(AWSProfile)
+			var (
+				profile = make(AWSProfile)
+
+				org, certpath, _ = mach.ParseCertArgs(c)
+
+				user = c.GlobalString("user")
+				cert = c.GlobalString("cert")
+
+				inst = mach.NewDockerHost(org, certpath, user, cert)
+			)
+
+			// Load from AWS configuration from last sync
 			profile.Load()
+
 			region, ok := profile[*sess.Config.Region]
 			if !ok {
 				fmt.Println("Please run sync in the region of choice")
 				os.Exit(1)
 			}
-			if p, ok := region[c.String("profile")]; !ok {
+			p, ok := region[c.String("profile")]
+			if !ok {
 				fmt.Println("Unable to find matching VPC profile")
 				os.Exit(1)
-			} else {
-				newEC2Inst(c, p, host)
 			}
+
+			// Invoke EC2 launch procedure
+			newEC2Inst(c, p, inst)
 
 			return nil
 		},

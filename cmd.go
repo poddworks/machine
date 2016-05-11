@@ -12,10 +12,6 @@ import (
 	"os"
 )
 
-var (
-	host *mach.Host
-)
-
 const (
 	DEFAULT_CERT_PATH = "~/.machine"
 
@@ -35,22 +31,8 @@ func CreateCommand() cli.Command {
 			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
 			cli.BoolTFlag{Name: "is-docker-engine", Usage: "Launched instance a Docker Engine"},
 		},
-		Before: func(c *cli.Context) error {
-			org, certpath, err := parseCertArgs(c)
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-			user, cert := c.String("user"), c.String("cert")
-			if c.BoolT("is-docker-engine") {
-				host = mach.NewDockerHost(org, certpath, user, cert)
-			} else {
-				host = mach.NewHost(org, certpath, user, cert)
-			}
-			return err
-		},
 		Subcommands: []cli.Command{
-			aws.NewCreateCommand(host),
+			aws.NewCreateCommand(),
 		},
 	}
 }
@@ -121,30 +103,27 @@ func EngineCommnd() cli.Command {
 			cli.StringFlag{Name: "host", Usage: "Host to apply engine install/config"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 		},
-		Before: func(c *cli.Context) error {
-			org, certpath, err := parseCertArgs(c)
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-			user, cert := c.String("user"), c.String("cert")
-			host = mach.NewDockerHost(org, certpath, user, cert)
-			return err
-		},
 		Subcommands: []cli.Command{
 			{
 				Name:  "install",
 				Usage: "Install Docker Enginea",
 				Flags: []cli.Flag{},
 				Action: func(c *cli.Context) error {
-					hostname, altnames := c.GlobalString("host"), c.GlobalStringSlice("altname")
-					err := host.InstallDockerEngine(hostname)
-					if err != nil {
+					var (
+						org, certpath, _ = mach.ParseCertArgs(c)
+
+						user     = c.GlobalString("user")
+						cert     = c.GlobalString("cert")
+						hostname = c.GlobalString("host")
+						altnames = c.GlobalStringSlice("altname")
+
+						inst = mach.NewDockerHost(org, certpath, user, cert)
+					)
+					if err := inst.InstallDockerEngine(hostname); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
-					err = host.InstallDockerEngineCertificate(hostname, altnames...)
-					if err != nil {
+					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
@@ -158,12 +137,20 @@ func EngineCommnd() cli.Command {
 					cli.BoolFlag{Name: "regenerate", Usage: "Installing new Certificate on existing instance"},
 				},
 				Action: func(c *cli.Context) error {
-					hostname, altnames := c.GlobalString("host"), c.GlobalStringSlice("altname")
+					var (
+						org, certpath, _ = mach.ParseCertArgs(c)
+
+						user     = c.GlobalString("user")
+						cert     = c.GlobalString("cert")
+						hostname = c.GlobalString("host")
+						altnames = c.GlobalStringSlice("altname")
+
+						inst = mach.NewDockerHost(org, certpath, user, cert)
+					)
 					if c.Bool("regenerate") {
-						host.SetProvision(false)
+						inst.SetProvision(false)
 					}
-					err := host.InstallDockerEngineCertificate(hostname, altnames...)
-					if err != nil {
+					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
@@ -187,7 +174,7 @@ func TlsCommand() cli.Command {
 				Name:  "bootstrap",
 				Usage: "Generate certificate for TLS",
 				Action: func(c *cli.Context) error {
-					org, certpath, err := parseCertArgs(c)
+					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)

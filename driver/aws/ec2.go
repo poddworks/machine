@@ -121,19 +121,19 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
+func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) {
 	var (
-		amiId            = c.String("instance-ami-id")
-		keyName          = c.String("instance-key")
-		num2Launch       = c.Int("instance-count")
-		iamProfile       = c.String("instance-profile")
-		instTags         = c.StringSlice("instance-tag")
-		instType         = c.String("instance-type")
-		instVolRoot      = c.Int("instance-root-size")
-		instVols         = c.IntSlice("instance-volume-size")
+		amiId            = c.String("ami-id")
+		keyName          = c.String("ssh-key")
+		num2Launch       = c.Int("count")
+		iamProfile       = c.String("iam-role")
+		instTags         = c.StringSlice("tag")
+		instType         = c.String("type")
+		instVolRoot      = c.Int("root-size")
+		instVols         = c.IntSlice("volume-size")
 		isPrivate        = c.Bool("subnet-private")
 		subnetId         = c.String("subnet-id")
-		networkACLGroups = c.StringSlice("security-group")
+		networkACLGroups = c.StringSlice("group")
 
 		//useDocker = c.BoolT("is-docker-engine")
 	)
@@ -226,10 +226,10 @@ func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
 				go func(ch <-chan ec2state) {
 					state := <-ch
 					if state.err == nil {
-						state.err = host.InstallDockerEngine(*state.PublicIpAddress)
+						state.err = ec2inst.InstallDockerEngine(*state.PublicIpAddress)
 					}
 					if state.err == nil {
-						state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
+						state.err = ec2inst.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
 					}
 					out <- state
 					wg.Done()

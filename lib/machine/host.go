@@ -5,8 +5,13 @@ import (
 	"github.com/jeffjen/machine/lib/docker"
 	"github.com/jeffjen/machine/lib/ssh"
 
+	"github.com/codegangsta/cli"
+
 	"bytes"
 	"fmt"
+	"os"
+	usr "os/user"
+	"strings"
 	"time"
 )
 
@@ -30,6 +35,35 @@ type Host struct {
 
 	// Mark that we are running fresh
 	provision bool
+}
+
+func ParseCertArgs(c *cli.Context) (org, certpath string, err error) {
+	user, err := usr.Current()
+	if err != nil {
+		return // Unable to determine user
+	}
+	org = c.String("organization")
+	if org == "" {
+		org = c.GlobalString("organization")
+	}
+	if org == "" {
+		err = fmt.Errorf("Missing required argument organization")
+		return
+	}
+	certpath = c.String("certpath")
+	if certpath == "" {
+		certpath = strings.Replace(c.GlobalString("certpath"), "~", user.HomeDir, 1)
+	}
+	if certpath == "" {
+		err = fmt.Errorf("Missing required argument certpath")
+		return
+	}
+	if _, err = os.Stat(certpath); err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(certpath, 0700)
+		}
+	}
+	return
 }
 
 func NewDockerHost(org, certpath, user, cert string) *Host {
