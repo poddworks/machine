@@ -29,7 +29,7 @@ func ami_getInfo() (ami []*ec2.Image) {
 	return
 }
 
-func amiInit(c *cli.Context, profile *VPCProfile) {
+func amiInit(c *cli.Context, profile *Profile) {
 	profile.Ami = make([]AMIProfile, 0)
 	for _, ami := range ami_getInfo() {
 		profile.Ami = append(profile.Ami, AMIProfile{

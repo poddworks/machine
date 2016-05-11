@@ -29,8 +29,6 @@ type VPCProfile struct {
 	Id            *string         `json:"id"`
 	Subnet        []SubnetProfile `json:"subnet"`
 	SecurityGroup []SecurityGroup `json:"security_group"`
-	KeyPair       []KeyPair       `json:"key_pair"`
-	Ami           []AMIProfile    `json:"ami"`
 }
 
 type AMIProfile struct {
@@ -46,9 +44,11 @@ type KeyPair struct {
 }
 
 type Profile struct {
-	Name   string     `json:"name"`
-	Region string     `json:"region"`
-	VPC    VPCProfile `json:"vpc"`
+	Name    string       `json:"name"`
+	Region  string       `json:"region"`
+	VPC     VPCProfile   `json:"vpc"`
+	KeyPair []KeyPair    `json:"key_pair"`
+	Ami     []AMIProfile `json:"ami"`
 }
 
 type RegionProfile map[string]*Profile

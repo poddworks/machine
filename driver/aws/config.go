@@ -28,7 +28,8 @@ func syncFromAWS() cli.Command {
 			defer profile.Load().Dump()
 			p := &Profile{Name: c.String("name"), Region: *sess.Config.Region}
 			vpcInit(c, &p.VPC)
-			amiInit(c, &p.VPC)
+			amiInit(c, p)
+			keypairInit(c, p)
 			if _, ok := profile[p.Region]; !ok {
 				profile[p.Region] = make(RegionProfile)
 			}

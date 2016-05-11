@@ -147,8 +147,8 @@ func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
 	// Step 1: determine the Amazone Machine Image ID
 	if amiId != "" {
 		ec2param.ImageId = aws.String(amiId)
-	} else if len(profile.VPC.Ami) != 0 {
-		ec2param.ImageId = profile.VPC.Ami[0].Id
+	} else if len(profile.Ami) != 0 {
+		ec2param.ImageId = profile.Ami[0].Id
 	} else {
 		fmt.Fprintln(os.Stderr, "Cannot proceed without an AMI")
 		os.Exit(1)
@@ -157,8 +157,8 @@ func newEC2Inst(c *cli.Context, profile *Profile, host *mach.Host) {
 	// Step 2: determine keypair to use for remote access
 	if keyName != "" {
 		ec2param.KeyName = aws.String(keyName)
-	} else if len(profile.VPC.KeyPair) != 0 {
-		ec2param.KeyName = profile.VPC.KeyPair[0].Name
+	} else if len(profile.KeyPair) != 0 {
+		ec2param.KeyName = profile.KeyPair[0].Name
 	} else {
 		fmt.Fprintln(os.Stderr, "Cannot proceed without SSH keypair")
 		os.Exit(1)
