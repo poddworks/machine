@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+var install_docker_stemps = []string{
+	`apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D`,
+	`apt-get update && apt-get install -y apt-transport-https linux-image-extra-$(uname -r)`,
+	`echo "deb https://apt.dockerproject.org/repo ubuntu-trusty main" | tee /etc/apt/sources.list.d/docker.list`,
+	`apt-get update && apt-get install -y docker-engine`,
+}
+
 type Host struct {
 	CertPath     string
 	Organization string
@@ -20,6 +27,77 @@ type Host struct {
 
 	// SSH config for command forwarding
 	cmdr ssh.Commander
+
+	// Mark that we are running fresh
+	provision bool
+}
+
+func NewDockerHost(org, certpath, user, cert string) *Host {
+	return &Host{
+		CertPath:     certpath,
+		Organization: org,
+		User:         user,
+		Cert:         cert,
+		IsDocker:     true,
+		provision:    true,
+	}
+}
+
+func NewHost(org, certpath, user, cert string) *Host {
+	return &Host{
+		CertPath:     certpath,
+		Organization: org,
+		User:         user,
+		Cert:         cert,
+		IsDocker:     false,
+		provision:    true,
+	}
+}
+
+func (h *Host) SetProvision(provision bool) {
+	h.provision = provision
+}
+
+func (h *Host) waitSSH() error {
+	host, _ := h.cmdr.Host()
+	// Wait for SSH daemon online
+	const attempts = 5
+	var idx = 0
+	for ; idx < attempts; idx++ {
+		if _, err := h.cmdr.Run("date"); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	if idx == attempts {
+		return fmt.Errorf("%s - Unable to contact remote", host)
+	} else {
+		return nil
+	}
+}
+
+func (h *Host) InstallDockerEngine(host string) error {
+	if !h.IsDocker { // Not processing because not a Docker Engine
+		fmt.Println(host, "- skipping Docker Engine Install")
+		return nil
+	}
+	ssh_config := ssh.Config{User: h.User, Server: host, Key: h.Cert, Port: "22"}
+	h.cmdr = ssh.New(ssh_config)
+
+	fmt.Println(host, "- install Docker Engine")
+	if timeout := h.waitSSH(); timeout != nil {
+		return timeout
+	} else {
+		h.cmdr.Sudo()
+		for _, cmd := range install_docker_stemps {
+			fmt.Println(host, "-", cmd)
+			if err := h.cmdr.RunQuiet(fmt.Sprintf("bash -c '%s'", cmd)); err != nil {
+				return err
+			}
+			// Next command in line!
+		}
+		return nil
+	}
 }
 
 func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) error {
@@ -44,26 +122,16 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 	}
 
 	fmt.Println(host, "- configure docker engine")
-	h.cmdr.Sudo()
-	return h.sendEngineCertificate(CA, Cert, Key)
+	if timeout := h.waitSSH(); timeout != nil {
+		return timeout
+	} else {
+		h.cmdr.Sudo()
+		return h.sendEngineCertificate(CA, Cert, Key)
+	}
 }
 
 func (h *Host) sendEngineCertificate(ca, cert, key *cert.PemBlock) error {
-	const attempts = 5
-
 	host, _ := h.cmdr.Host()
-
-	// Wait for SSH daemon online
-	var idx = 0
-	for ; idx < attempts; idx++ {
-		if _, err := h.cmdr.Run("date"); err == nil {
-			break
-		}
-		time.Sleep(5 * time.Second)
-	}
-	if idx == attempts {
-		return fmt.Errorf("%s - Unable to contact remote", host)
-	}
 
 	if err := h.cmdr.Copy(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
 		return err
@@ -111,15 +179,20 @@ func (h *Host) configureDockerTLS() error {
 		buf = new(bytes.Buffer)
 	)
 
-	err := h.cmdr.Load(daemonPath, buf)
-	if err != nil {
-		return err
+	if h.provision {
+		dOpts = new(docker.DaemonConfig)
+		dOpts.AddHost("unix:///var/run/docker.sock")
+	} else {
+		err := h.cmdr.Load(daemonPath, buf)
+		if err != nil {
+			return err
+		}
+		dOpts, err = docker.LoadDaemonConfig(buf.Bytes())
+		if err != nil {
+			return err
+		}
 	}
-	dOpts, err = docker.LoadDaemonConfig(buf.Bytes())
-	if err != nil {
-		return err
-	}
-	dOpts.AddHost("tcp://0.0.0.0:2375")
+	dOpts.AddHost("tcp://0.0.0.0:2376")
 	dOpts.TlsVerify = true
 	dOpts.TlsCACert = CAPem
 	dOpts.TlsCert = CertPem
