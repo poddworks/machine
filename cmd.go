@@ -118,7 +118,7 @@ func TlsCommand() cli.Command {
 			{
 				Name:  "bootstrap",
 				Usage: "Generate certificate for TLS",
-				Action: func(c *cli.Context) {
+				Action: func(c *cli.Context) error {
 					org, certpath, err := parseCertArgs(c)
 					if err != nil {
 						fmt.Println(err.Error())
@@ -126,6 +126,7 @@ func TlsCommand() cli.Command {
 					}
 					cert.GenerateCACertificate(org, certpath)
 					cert.GenerateClientCertificate(org, certpath)
+					return nil
 				},
 			},
 			{
@@ -135,7 +136,7 @@ func TlsCommand() cli.Command {
 					cli.StringFlag{Name: "host", Usage: "Generate certificate for Host"},
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
-				Action: func(c *cli.Context) {
+				Action: func(c *cli.Context) error {
 					_, Cert, Key := generateServerCertificate(c)
 					if err := ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
 						fmt.Println(err.Error())
@@ -145,6 +146,7 @@ func TlsCommand() cli.Command {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
+					return nil
 				},
 			},
 			{
@@ -167,12 +169,13 @@ func TlsCommand() cli.Command {
 					}
 					return err
 				},
-				Action: func(c *cli.Context) {
+				Action: func(c *cli.Context) error {
 					err := host.InstallDockerEngineCertificate(c.String("host"), c.StringSlice("altname")...)
 					if err != nil {
 						fmt.Println(err.Error())
 						os.Exit(1)
 					}
+					return nil
 				},
 			},
 		},

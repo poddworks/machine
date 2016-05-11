@@ -16,7 +16,7 @@ func parseArgs(c *cli.Context) (user, key, port string, hosts []string) {
 	return c.String("user"), c.String("cert"), c.String("port"), c.StringSlice("host")
 }
 
-func runCmd(c *cli.Context) {
+func runCmd(c *cli.Context) error {
 	var (
 		cmd                    = strings.Join(c.Args(), " ")
 		collect                = make(chan error)
@@ -49,9 +49,11 @@ func runCmd(c *cli.Context) {
 		fmt.Fprintln(os.Stderr, "One or more task failed")
 		os.Exit(1)
 	}
+
+	return nil
 }
 
-func runScript(c *cli.Context) {
+func runScript(c *cli.Context) error {
 	var (
 		scripts                = c.Args()
 		collect                = make(chan error)
@@ -87,9 +89,11 @@ func runScript(c *cli.Context) {
 		fmt.Fprintln(os.Stderr, "One or more task failed")
 		os.Exit(1)
 	}
+
+	return nil
 }
 
-func runPlaybook(c *cli.Context) {
+func runPlaybook(c *cli.Context) error {
 	var (
 		collect                = make(chan error)
 		dryrun                 = c.Parent().Bool("dryrun")
@@ -137,6 +141,8 @@ func runPlaybook(c *cli.Context) {
 			os.Exit(1)
 		}
 	}
+
+	return nil
 }
 
 func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.Recipe) {

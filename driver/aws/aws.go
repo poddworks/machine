@@ -85,7 +85,7 @@ func NewCreateCommand(host *mach.Host) cli.Command {
 			cli.StringSliceFlag{Name: "security-group", Usage: "Network security group for user"},
 		),
 		Before: before,
-		Action: func(c *cli.Context) {
+		Action: func(c *cli.Context) error {
 			var profile = make(AWSProfile)
 			profile.Load()
 			region, ok := profile[*sess.Config.Region]
@@ -99,6 +99,8 @@ func NewCreateCommand(host *mach.Host) cli.Command {
 			} else {
 				newEC2Inst(c, p, host)
 			}
+
+			return nil
 		},
 	}
 }
@@ -113,7 +115,7 @@ func NewImageCommand() cli.Command {
 			cli.StringFlag{Name: "desc", Usage: "EC2 AMI Description"},
 		),
 		Before: before,
-		Action: func(c *cli.Context) {
+		Action: func(c *cli.Context) error {
 			var (
 				instId = c.String("instance-id")
 				name   = c.String("name")
@@ -131,6 +133,8 @@ func NewImageCommand() cli.Command {
 			} else {
 				fmt.Println(*resp.ImageId)
 			}
+
+			return nil
 		},
 	}
 }

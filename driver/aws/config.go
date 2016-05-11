@@ -23,7 +23,7 @@ func syncFromAWS() cli.Command {
 			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
 			cli.StringFlag{Name: "vpc-id", Value: "default", Usage: "AWS VPC identifier"},
 		},
-		Action: func(c *cli.Context) {
+		Action: func(c *cli.Context) error {
 			var profile = make(AWSProfile)
 			defer profile.Load().Dump()
 			p := &Profile{Name: c.String("name"), Region: *sess.Config.Region}
@@ -33,6 +33,7 @@ func syncFromAWS() cli.Command {
 				profile[p.Region] = make(RegionProfile)
 			}
 			profile[p.Region][p.Name] = p
+			return nil
 		},
 	}
 }
@@ -54,7 +55,7 @@ func getFromAWSConfig() cli.Command {
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
 		},
-		Action: func(c *cli.Context) {
+		Action: func(c *cli.Context) error {
 			var (
 				profile = make(AWSProfile)
 
@@ -66,7 +67,7 @@ func getFromAWSConfig() cli.Command {
 
 			// Retrieve user provide query path
 			if qpath == "" {
-				return // nothing to do here, abort
+				return nil // nothing to do here, abort
 			}
 
 			profile.Load() // load stored local AWS config
@@ -128,6 +129,8 @@ func getFromAWSConfig() cli.Command {
 			} else {
 				fmt.Println(string(output))
 			}
+
+			return nil
 		},
 	}
 }
