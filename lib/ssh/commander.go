@@ -167,6 +167,21 @@ func (sshCmd *SSHCommander) Run(cmd string) (output string, err error) {
 	return
 }
 
+func (sshCmd *SSHCommander) RunQuiet(cmd string) (err error) {
+	session, err := sshCmd.connect()
+	if err != nil {
+		return
+	}
+	session.Stdout = nil
+	session.Stderr = nil
+	defer session.Close()
+	if sshCmd.sudo {
+		cmd = fmt.Sprintf("sudo -s %s", cmd)
+	}
+	err = session.Run(cmd)
+	return
+}
+
 func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 	session, err := sshCmd.connect()
 	if err != nil {

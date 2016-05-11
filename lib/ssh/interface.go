@@ -25,10 +25,13 @@ type Commander interface {
 	Mkdir(path string) error
 
 	// Run command and retreive combinded output
-	Run(cmd string) (output string, err error)
+	Run(cmd string) (string, error)
+
+	// Run command and stay quiet
+	RunQuiet(cmd string) error
 
 	// Run command and stream combined output
-	Stream(cmd string) (output <-chan Response, err error)
+	Stream(cmd string) (<-chan Response, error)
 
 	// Elevate commander role and return a Deferr Target
 	Sudo() SudoSession
