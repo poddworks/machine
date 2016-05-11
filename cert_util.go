@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	usr "os/user"
-	path "path/filepath"
 	"strings"
 )
 
@@ -21,16 +20,23 @@ func parseCertArgs(c *cli.Context) (org, certpath string, err error) {
 	if org == "" {
 		org = c.GlobalString("organization")
 	}
-	certpath = c.String("certpath")
-	if certpath == "" {
-		certpath = c.GlobalString("certpath")
-	}
-	certpath = strings.Replace(certpath, "~", user.HomeDir, 1)
-	certpath, err = path.Abs(certpath)
-	if err != nil {
+	if org == "" {
+		err = fmt.Errorf("Missing required argument organization")
 		return
 	}
-	err = os.MkdirAll(certpath, 0700)
+	certpath = c.String("certpath")
+	if certpath == "" {
+		certpath = strings.Replace(c.GlobalString("certpath"), "~", user.HomeDir, 1)
+	}
+	if certpath == "" {
+		err = fmt.Errorf("Missing required argument certpath")
+		return
+	}
+	if _, err = os.Stat(certpath); err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(certpath, 0700)
+		}
+	}
 	return
 }
 

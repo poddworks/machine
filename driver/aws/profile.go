@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	path "path/filepath"
 	"strings"
 )
 
@@ -61,8 +62,17 @@ func getConfigPath() (string, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", err
+	}
+	conf := strings.Replace(AWS_PROFILE_CONFIG_FILE, "~", usr.HomeDir, 1)
+	confdir := path.Dir(conf)
+	if _, err := os.Stat(confdir); err != nil {
+		if os.IsNotExist(err) {
+			return conf, os.MkdirAll(confdir, 0700)
+		} else {
+			return "", err
+		}
 	} else {
-		return strings.Replace(AWS_PROFILE_CONFIG_FILE, "~", usr.HomeDir, 1), nil
+		return conf, nil
 	}
 }
 
