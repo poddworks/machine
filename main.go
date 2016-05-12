@@ -27,6 +27,7 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
+		ListInstanceCommand(),
 		EnvCommand(),
 		ExecCommand(),
 		TlsCommand(),

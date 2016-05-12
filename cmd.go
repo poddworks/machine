@@ -5,6 +5,7 @@ import (
 	mach "github.com/jeffjen/machine/lib/machine"
 
 	"github.com/codegangsta/cli"
+	"github.com/olekukonko/tablewriter"
 
 	"fmt"
 	"io/ioutil"
@@ -12,6 +13,32 @@ import (
 	"os/user"
 	"strings"
 )
+
+func ListInstanceCommand() cli.Command {
+	return cli.Command{
+		Name:  "ls",
+		Usage: "List cached Docker Engine instance info",
+		Action: func(c *cli.Context) error {
+			var (
+				instList = make(mach.RegisteredInstances)
+
+				// Prepare table render
+				table = tablewriter.NewWriter(os.Stdout)
+			)
+
+			instList.Load() // Load instance metadata
+
+			table.SetHeader([]string{"Name", "DockerHost", "State", "Driver"})
+			table.SetBorder(false)
+			for k, v := range instList {
+				table.Append([]string{k, v.DockerHost.String(), v.State, v.Driver})
+			}
+			table.Render()
+
+			return nil
+		},
+	}
+}
 
 func EnvCommand() cli.Command {
 	return cli.Command{
