@@ -1,9 +1,20 @@
 package main
 
 import (
+	"github.com/jeffjen/machine/driver/aws"
+	"github.com/jeffjen/machine/driver/generic"
+
 	"github.com/codegangsta/cli"
 
 	"os"
+)
+
+const (
+	DEFAULT_CERT_PATH = "~/.machine"
+
+	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
+
+	DEFAULT_MACHINE_PORT = "22"
 )
 
 func main() {
@@ -16,12 +27,14 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
-		CreateCommand(),
-		ImageCommand(),
-		ConfigCommand(),
+		aws.NewCommand(),
+		generic.NewCommand(),
 		ExecCommand(),
-		EngineCommnd(),
 		TlsCommand(),
+	}
+	app.Flags = []cli.Flag{
+		cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
+		cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
 	}
 	app.Before = nil
 	app.Action = nil

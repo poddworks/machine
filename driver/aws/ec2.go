@@ -124,18 +124,16 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) {
 	var (
 		amiId            = c.String("ami-id")
-		keyName          = c.String("ssh-key")
 		num2Launch       = c.Int("count")
+		networkACLGroups = c.StringSlice("group")
 		iamProfile       = c.String("iam-role")
-		instTags         = c.StringSlice("tag")
-		instType         = c.String("type")
 		instVolRoot      = c.Int("root-size")
-		instVols         = c.IntSlice("volume-size")
+		keyName          = c.String("ssh-key")
 		isPrivate        = c.Bool("subnet-private")
 		subnetId         = c.String("subnet-id")
-		networkACLGroups = c.StringSlice("group")
-
-		//useDocker = c.BoolT("is-docker-engine")
+		instTags         = c.StringSlice("tag")
+		instType         = c.String("type")
+		instVols         = c.IntSlice("volume-size")
 	)
 	ec2param := &ec2.RunInstancesInput{
 		InstanceType:     aws.String(instType),

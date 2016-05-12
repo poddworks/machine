@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/jeffjen/machine/driver/aws"
 	"github.com/jeffjen/machine/lib/cert"
 	mach "github.com/jeffjen/machine/lib/machine"
 
@@ -11,51 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 )
-
-const (
-	DEFAULT_CERT_PATH = "~/.machine"
-
-	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
-
-	DEFAULT_MACHINE_PORT = "22"
-)
-
-func CreateCommand() cli.Command {
-	return cli.Command{
-		Name:  "create",
-		Usage: "Create and Manage machine",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
-			cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
-			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-			cli.BoolTFlag{Name: "is-docker-engine", Usage: "Launched instance a Docker Engine"},
-		},
-		Subcommands: []cli.Command{
-			aws.NewCreateCommand(),
-		},
-	}
-}
-
-func ImageCommand() cli.Command {
-	return cli.Command{
-		Name:  "register",
-		Usage: "Register Virtual Machine image",
-		Subcommands: []cli.Command{
-			aws.NewImageCommand(),
-		},
-	}
-}
-
-func ConfigCommand() cli.Command {
-	return cli.Command{
-		Name:  "config",
-		Usage: "Configure settings pertain to machine management",
-		Subcommands: []cli.Command{
-			aws.NewConfigCommand(),
-		},
-	}
-}
 
 func ExecCommand() cli.Command {
 	return cli.Command{
@@ -86,76 +40,6 @@ func ExecCommand() cli.Command {
 				Name:   "playbook",
 				Usage:  "Go through the playbook",
 				Action: runPlaybook,
-			},
-		},
-	}
-}
-
-func EngineCommnd() cli.Command {
-	return cli.Command{
-		Name:  "engine",
-		Usage: "Utility for setting up Docker Engine",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
-			cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
-			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-			cli.StringFlag{Name: "host", Usage: "Host to apply engine install/config"},
-			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-		},
-		Subcommands: []cli.Command{
-			{
-				Name:  "install",
-				Usage: "Install Docker Enginea",
-				Flags: []cli.Flag{},
-				Action: func(c *cli.Context) error {
-					var (
-						org, certpath, _ = mach.ParseCertArgs(c)
-
-						user     = c.GlobalString("user")
-						cert     = c.GlobalString("cert")
-						hostname = c.GlobalString("host")
-						altnames = c.GlobalStringSlice("altname")
-
-						inst = mach.NewDockerHost(org, certpath, user, cert)
-					)
-					if err := inst.InstallDockerEngine(hostname); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					return nil
-				},
-			},
-			{
-				Name:  "install-certificate",
-				Usage: "Generate and install certificate for Docker Enginea",
-				Flags: []cli.Flag{
-					cli.BoolFlag{Name: "regenerate", Usage: "Installing new Certificate on existing instance"},
-				},
-				Action: func(c *cli.Context) error {
-					var (
-						org, certpath, _ = mach.ParseCertArgs(c)
-
-						user     = c.GlobalString("user")
-						cert     = c.GlobalString("cert")
-						hostname = c.GlobalString("host")
-						altnames = c.GlobalStringSlice("altname")
-
-						inst = mach.NewDockerHost(org, certpath, user, cert)
-					)
-					if c.Bool("regenerate") {
-						inst.SetProvision(false)
-					}
-					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-						fmt.Println(err.Error())
-						os.Exit(1)
-					}
-					return nil
-				},
 			},
 		},
 	}
@@ -206,4 +90,26 @@ func TlsCommand() cli.Command {
 			},
 		},
 	}
+}
+
+func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock) {
+	var hosts = make([]string, 0)
+	if hostname := c.String("host"); hostname == "" {
+		fmt.Println("You must provide hostname to create Certificate for")
+		os.Exit(1)
+	} else {
+		hosts = append(hosts, hostname)
+	}
+	hosts = append(hosts, c.StringSlice("altname")...)
+	org, certpath, err := mach.ParseCertArgs(c)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	return
 }
