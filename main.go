@@ -27,10 +27,11 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
-		aws.NewCommand(),
-		generic.NewCommand(),
+		EnvCommand(),
 		ExecCommand(),
 		TlsCommand(),
+		aws.NewCommand(),
+		generic.NewCommand(),
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},

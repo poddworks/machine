@@ -9,7 +9,45 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
+	"strings"
 )
+
+func EnvCommand() cli.Command {
+	return cli.Command{
+		Name:  "env",
+		Usage: "Apply Docker Engine environment for target",
+		Action: func(c *cli.Context) error {
+			var (
+				usr, _   = user.Current()
+				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", usr.HomeDir, 1)
+
+				instList = make(mach.RegisteredInstances)
+
+				name = c.Args().First()
+			)
+			if name == "" {
+				fmt.Println("Required argument `name` missing")
+				os.Exit(1)
+			}
+
+			instList.Load() // Load instance metadata
+
+			instMeta, ok := instList[name]
+			if !ok {
+				fmt.Println("Provided instance [", name, "] not found")
+				os.Exit(1)
+			}
+
+			fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
+			fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
+			fmt.Printf("export DOCKER_HOST=%s://%s\n", instMeta.DockerHost.Network(), instMeta.DockerHost)
+			fmt.Printf("# eval $(machine env %s)\n", name)
+
+			return nil
+		},
+	}
+}
 
 func ExecCommand() cli.Command {
 	return cli.Command{
