@@ -11,6 +11,7 @@ import (
 
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"time"
 )
@@ -76,7 +77,7 @@ func newCreateCommand() cli.Command {
 		Name:  "create",
 		Usage: "Create a new EC2 instance",
 		Flags: []cli.Flag{
-			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
+			cli.BoolTFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
 			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
 			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
 			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
@@ -99,10 +100,14 @@ func newCreateCommand() cli.Command {
 				user = c.GlobalString("user")
 				cert = c.GlobalString("cert")
 
+				useDocker = c.Bool("use-docker")
+
+				instList = make(mach.RegisteredInstances)
+
 				inst *mach.Host
 			)
 
-			if c.Bool("use-docker") {
+			if useDocker {
 				inst = mach.NewDockerHost(org, certpath, user, cert)
 			} else {
 				inst = mach.NewHost(org, certpath, user, cert)
@@ -122,8 +127,25 @@ func newCreateCommand() cli.Command {
 				os.Exit(1)
 			}
 
+			// Load from Instance Roster to register and defer write back
+			defer instList.Load().Dump()
+
 			// Invoke EC2 launch procedure
-			newEC2Inst(c, p, inst)
+			for state := range newEC2Inst(c, p, inst) {
+				if addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376"); state.err == nil {
+					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
+					if useDocker {
+						instList[*state.InstanceId] = &mach.Instance{
+							Id:         *state.InstanceId,
+							Driver:     "aws",
+							DockerHost: addr,
+							State:      "running",
+						}
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, state.err.Error())
+				}
+			}
 
 			return nil
 		},

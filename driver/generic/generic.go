@@ -6,6 +6,7 @@ import (
 	"github.com/codegangsta/cli"
 
 	"fmt"
+	"net"
 	"os"
 )
 
@@ -31,6 +32,7 @@ func newCreateCommand() cli.Command {
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
+			cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
 		},
 		Action: func(c *cli.Context) error {
 			var (
@@ -41,8 +43,22 @@ func newCreateCommand() cli.Command {
 				hostname = c.String("host")
 				altnames = c.StringSlice("altname")
 
+				name    = c.String("name")
+				addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
+
+				instList = make(mach.RegisteredInstances)
+
 				inst = mach.NewDockerHost(org, certpath, user, cert)
 			)
+
+			if name == "" {
+				fmt.Println("Required argument `name` missing")
+				os.Exit(1)
+			}
+
+			// Load from Instance Roster to register and defer write back
+			defer instList.Load().Dump()
+
 			if err := inst.InstallDockerEngine(hostname); err != nil {
 				fmt.Println(err.Error())
 				os.Exit(1)
@@ -51,6 +67,13 @@ func newCreateCommand() cli.Command {
 				fmt.Println(err.Error())
 				os.Exit(1)
 			}
+			instList[name] = &mach.Instance{
+				Id:         name,
+				Driver:     "generic",
+				DockerHost: addr,
+				State:      "running",
+			}
+
 			return nil
 		},
 	}

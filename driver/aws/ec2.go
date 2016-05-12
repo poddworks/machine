@@ -121,7 +121,7 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) {
+func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2state {
 	var (
 		amiId            = c.String("ami-id")
 		num2Launch       = c.Int("count")
@@ -237,11 +237,6 @@ func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) {
 		}()
 		return out
 	}
-	for state := range waitForReady(resp.Instances...) {
-		if state.err == nil {
-			fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
-		} else {
-			fmt.Fprintln(os.Stderr, state.err.Error())
-		}
-	}
+
+	return waitForReady(resp.Instances...)
 }
