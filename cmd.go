@@ -28,10 +28,19 @@ func ListInstanceCommand() cli.Command {
 
 			instList.Load() // Load instance metadata
 
-			table.SetHeader([]string{"Name", "DockerHost", "State", "Driver"})
+			table.SetHeader([]string{"Id", "Name", "DockerHost", "Driver", "State", "Tag"})
 			table.SetBorder(false)
-			for k, v := range instList {
-				table.Append([]string{k, v.DockerHost.String(), v.State, v.Driver})
+			for name, info := range instList {
+				var dockerhost = info.DockerHost.String()
+				var oneRow = []string{
+					info.Id,                     // ID
+					name,                        // Name
+					dockerhost,                  // DockerHost
+					info.Driver,                 // Driver
+					info.State,                  // State
+					strings.Join(info.Tag, ","), // Tags
+				}
+				table.Append(oneRow)
 			}
 			table.Render()
 

@@ -19,6 +19,7 @@ type Instance struct {
 	Driver     string
 	DockerHost *net.TCPAddr
 	State      string
+	Tag        []string
 }
 
 type RegisteredInstances map[string]*Instance
