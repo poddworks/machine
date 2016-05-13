@@ -9,6 +9,7 @@ import (
 
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -21,6 +22,59 @@ var (
 type ec2state struct {
 	*ec2.Instance
 	err error
+}
+
+func ec2Init() {
+	var (
+		instList = make(mach.RegisteredInstances)
+
+		resp = new(ec2.DescribeInstancesOutput)
+	)
+
+	// Load from Instance Roster to register and defer write back
+	defer instList.Load().Dump()
+
+	for more := true; more; {
+		params := &ec2.DescribeInstancesInput{}
+		if resp.NextToken != nil {
+			params.NextToken = resp.NextToken
+		}
+		resp, err := svc.DescribeInstances(params)
+		if err != nil {
+			more = false
+		} else if len(resp.Reservations) < 1 {
+			more = false
+		} else {
+			for _, r := range resp.Reservations {
+				for _, inst := range r.Instances {
+					info, ok := instList[*inst.InstanceId]
+					if !ok {
+						info = &mach.Instance{Name: *inst.InstanceId}
+					} else if info.Name == "" {
+						info.Name = *inst.InstanceId
+					}
+					info.Driver = "aws"
+					info.State = *inst.State.Name
+					func() {
+						var addr *net.TCPAddr
+						if inst.PublicIpAddress != nil {
+							addr, _ = net.ResolveTCPAddr("tcp", *inst.PublicIpAddress+":2376")
+						}
+						info.DockerHost = addr
+					}()
+					func() {
+						var tags = make([]mach.Tag, 0, len(inst.Tags))
+						for _, t := range inst.Tags {
+							tags = append(tags, mach.Tag{K: *t.Key, V: *t.Value})
+						}
+						info.Tag = tags
+					}()
+					instList[*inst.InstanceId] = info
+				}
+			}
+			more = (resp.NextToken != nil)
+		}
+	}
 }
 
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {

@@ -14,12 +14,25 @@ const (
 	INSTANCE_LISTING_FILE = "~/.machine/instance.json"
 )
 
+type Tag struct {
+	K string
+	V string
+}
+
 type Instance struct {
-	Id         string
+	Name       string
 	Driver     string
 	DockerHost *net.TCPAddr
 	State      string
-	Tag        []string
+	Tag        []Tag
+}
+
+func (inst *Instance) TagSlice() (pairs []string) {
+	pairs = make([]string, 0, len(inst.Tag))
+	for _, t := range inst.Tag {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", t.K, t.V))
+	}
+	return
 }
 
 type RegisteredInstances map[string]*Instance

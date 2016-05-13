@@ -30,15 +30,15 @@ func ListInstanceCommand() cli.Command {
 
 			table.SetHeader([]string{"Id", "Name", "DockerHost", "Driver", "State", "Tag"})
 			table.SetBorder(false)
-			for name, info := range instList {
-				var dockerhost = info.DockerHost.String()
+			for iden, inst := range instList {
+				var dockerhost = inst.DockerHost.String()
 				var oneRow = []string{
-					info.Id,                     // ID
-					name,                        // Name
-					dockerhost,                  // DockerHost
-					info.Driver,                 // Driver
-					info.State,                  // State
-					strings.Join(info.Tag, ","), // Tags
+					iden,                               // Id
+					inst.Name,                          // Name
+					dockerhost,                         // DockerHost
+					inst.Driver,                        // Driver
+					inst.State,                         // State
+					strings.Join(inst.TagSlice(), ","), // Tags
 				}
 				table.Append(oneRow)
 			}

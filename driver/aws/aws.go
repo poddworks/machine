@@ -136,7 +136,7 @@ func newCreateCommand() cli.Command {
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 					if useDocker {
 						instList[*state.InstanceId] = &mach.Instance{
-							Id:         *state.InstanceId,
+							Name:       *state.InstanceId,
 							Driver:     "aws",
 							DockerHost: addr,
 							State:      "running",

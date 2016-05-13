@@ -68,7 +68,7 @@ func newCreateCommand() cli.Command {
 				os.Exit(1)
 			}
 			instList[name] = &mach.Instance{
-				Id:         name,
+				Name:       name,
 				Driver:     "generic",
 				DockerHost: addr,
 				State:      "running",
@@ -124,7 +124,7 @@ func newRegenerateCertificate() cli.Command {
 				os.Exit(1)
 			}
 			instList[name] = &mach.Instance{
-				Id:         name,
+				Name:       name,
 				Driver:     driver,
 				DockerHost: addr,
 				State:      "running",

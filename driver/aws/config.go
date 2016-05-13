@@ -30,6 +30,7 @@ func syncFromAWS() cli.Command {
 			vpcInit(c, &p.VPC)
 			amiInit(c, p)
 			keypairInit(c, p)
+			ec2Init()
 			if _, ok := profile[p.Region]; !ok {
 				profile[p.Region] = make(RegionProfile)
 			}
