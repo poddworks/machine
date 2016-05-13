@@ -20,7 +20,6 @@ func NewCommand() cli.Command {
 		},
 		Subcommands: []cli.Command{
 			newCreateCommand(),
-			newRegenerateCertificate(),
 		},
 	}
 }
@@ -74,61 +73,6 @@ func newCreateCommand() cli.Command {
 				State:      "running",
 			}
 
-			return nil
-		},
-	}
-}
-
-func newRegenerateCertificate() cli.Command {
-	return cli.Command{
-		Name:  "regenerate-certificate",
-		Usage: "Generate and install certificate on target",
-		Flags: []cli.Flag{
-			cli.BoolFlag{Name: "is-new", Usage: "Installing new Certificate on existing instance"},
-			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine Certificate"},
-			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-			cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
-			cli.StringFlag{Name: "driver", Value: "generic", Usage: "Hint at what type of driver created this instance"},
-		},
-		Action: func(c *cli.Context) error {
-			var (
-				org, certpath, _ = mach.ParseCertArgs(c)
-
-				user     = c.GlobalString("user")
-				cert     = c.GlobalString("cert")
-				hostname = c.String("host")
-				altnames = c.StringSlice("altname")
-
-				name    = c.String("name")
-				driver  = c.String("driver")
-				addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
-
-				instList = make(mach.RegisteredInstances)
-
-				inst = mach.NewDockerHost(org, certpath, user, cert)
-			)
-
-			if name == "" {
-				fmt.Println("Required argument `name` missing")
-				os.Exit(1)
-			}
-
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
-
-			// Tell host provisioner whether to reuse old Docker Daemon config
-			inst.SetProvision(c.Bool("is-new"))
-
-			if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-			instList[name] = &mach.Instance{
-				Name:       name,
-				Driver:     driver,
-				DockerHost: addr,
-				State:      "running",
-			}
 			return nil
 		},
 	}
