@@ -179,7 +179,7 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2state {
+func newEC2Inst(c *cli.Context, profile *Profile, user, cert string, useDocker bool) <-chan ec2state {
 	var (
 		amiId            = c.String("ami-id")
 		num2Launch       = c.Int("count")
@@ -192,6 +192,8 @@ func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2
 		instTags         = c.StringSlice("tag")
 		instType         = c.String("type")
 		instVols         = c.IntSlice("volume-size")
+
+		org, certpath, _ = mach.ParseCertArgs(c)
 	)
 	ec2param := &ec2.RunInstancesInput{
 		InstanceType:     aws.String(instType),
@@ -280,12 +282,20 @@ func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2
 			wg.Add(len(instances))
 			for _, inst := range instances {
 				go func(ch <-chan ec2state) {
-					state := <-ch
-					if state.err == nil {
-						state.err = ec2inst.InstallDockerEngine(*state.PublicIpAddress)
-					}
-					if state.err == nil {
-						state.err = ec2inst.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
+					var (
+						state = <-ch
+
+						publicIP  = *state.PublicIpAddress
+						privateIP = *state.PrivateIpAddress
+					)
+					if useDocker {
+						host := mach.NewDockerHost(org, certpath, user, cert)
+						if state.err == nil {
+							state.err = host.InstallDockerEngine(publicIP)
+						}
+						if state.err == nil {
+							state.err = host.InstallDockerEngineCertificate(publicIP, privateIP)
+						}
 					}
 					out <- state
 					wg.Done()

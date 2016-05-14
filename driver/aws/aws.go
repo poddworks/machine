@@ -111,22 +111,17 @@ func newCreateCommand() cli.Command {
 			var (
 				profile = make(AWSProfile)
 
-				org, certpath, _ = mach.ParseCertArgs(c)
-
 				user = c.GlobalString("user")
 				cert = c.GlobalString("cert")
 
 				useDocker = c.Bool("use-docker")
 
 				instList = make(mach.RegisteredInstances)
-
-				inst *mach.Host
 			)
 
-			if useDocker {
-				inst = mach.NewDockerHost(org, certpath, user, cert)
-			} else {
-				inst = mach.NewHost(org, certpath, user, cert)
+			if user == "" || cert == "" {
+				fmt.Fprintln(os.Stderr, "Missing required remote auth info")
+				os.Exit(1)
 			}
 
 			// Load from AWS configuration from last sync
@@ -147,7 +142,7 @@ func newCreateCommand() cli.Command {
 			defer instList.Load().Dump()
 
 			// Invoke EC2 launch procedure
-			for state := range newEC2Inst(c, p, inst) {
+			for state := range newEC2Inst(c, p, user, cert, useDocker) {
 				if addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376"); state.err == nil {
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 					if useDocker {
