@@ -47,29 +47,33 @@ func ec2Init() {
 		} else {
 			for _, r := range resp.Reservations {
 				for _, inst := range r.Instances {
-					info, ok := instList[*inst.InstanceId]
-					if !ok {
-						info = &mach.Instance{Name: *inst.InstanceId}
-					} else if info.Name == "" {
-						info.Name = *inst.InstanceId
+					if *inst.State.Name == "terminated" {
+						delete(instList, *inst.InstanceId)
+					} else {
+						info, ok := instList[*inst.InstanceId]
+						if !ok {
+							info = &mach.Instance{Name: *inst.InstanceId}
+						} else if info.Name == "" {
+							info.Name = *inst.InstanceId
+						}
+						info.Driver = "aws"
+						info.State = *inst.State.Name
+						func() {
+							var addr *net.TCPAddr
+							if inst.PublicIpAddress != nil {
+								addr, _ = net.ResolveTCPAddr("tcp", *inst.PublicIpAddress+":2376")
+							}
+							info.DockerHost = addr
+						}()
+						func() {
+							var tags = make([]mach.Tag, 0, len(inst.Tags))
+							for _, t := range inst.Tags {
+								tags = append(tags, mach.Tag{K: *t.Key, V: *t.Value})
+							}
+							info.Tag = tags
+						}()
+						instList[*inst.InstanceId] = info
 					}
-					info.Driver = "aws"
-					info.State = *inst.State.Name
-					func() {
-						var addr *net.TCPAddr
-						if inst.PublicIpAddress != nil {
-							addr, _ = net.ResolveTCPAddr("tcp", *inst.PublicIpAddress+":2376")
-						}
-						info.DockerHost = addr
-					}()
-					func() {
-						var tags = make([]mach.Tag, 0, len(inst.Tags))
-						for _, t := range inst.Tags {
-							tags = append(tags, mach.Tag{K: *t.Key, V: *t.Value})
-						}
-						info.Tag = tags
-					}()
-					instList[*inst.InstanceId] = info
 				}
 			}
 			more = (resp.NextToken != nil)
