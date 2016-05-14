@@ -40,12 +40,12 @@ type RegisteredInstances map[string]*Instance
 func (r RegisteredInstances) Load() RegisteredInstances {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer origin.Close()
@@ -56,12 +56,12 @@ func (r RegisteredInstances) Load() RegisteredInstances {
 func (r RegisteredInstances) Dump() {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer origin.Close()

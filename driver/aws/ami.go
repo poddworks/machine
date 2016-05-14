@@ -21,7 +21,7 @@ func ami_getInfo() (ami []*ec2.Image) {
 		},
 	}
 	if resp, err := svc.DescribeImages(amiparam); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	} else {
 		ami = resp.Images

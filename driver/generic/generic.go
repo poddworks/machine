@@ -51,7 +51,7 @@ func newCreateCommand() cli.Command {
 			)
 
 			if name == "" {
-				fmt.Println("Required argument `name` missing")
+				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
 				os.Exit(1)
 			}
 
@@ -59,11 +59,11 @@ func newCreateCommand() cli.Command {
 			defer instList.Load().Dump()
 
 			if err := inst.InstallDockerEngine(hostname); err != nil {
-				fmt.Println(err.Error())
+				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 			if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-				fmt.Println(err.Error())
+				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 			instList[name] = &mach.Instance{

@@ -10,7 +10,7 @@ import (
 
 func keypair_getInfo() (keys []*ec2.KeyPairInfo) {
 	if resp, err := svc.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{}); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	} else {
 		keys = resp.KeyPairs

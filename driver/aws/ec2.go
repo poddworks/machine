@@ -247,14 +247,14 @@ func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2
 	// Step 6: create tags from spec
 	tag, err := ec2_tagInstanceParam(instTags)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	// Last step: launch + tag instances
 	resp, err := svc.RunInstances(ec2param)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	if len(tag.Tags) > 0 {
@@ -263,7 +263,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, ec2inst *mach.Host) <-chan ec2
 		}
 		_, err = svc.CreateTags(tag)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Fprintln(os.Stderr, err)
 		}
 	}
 	fmt.Println("Launched instances...")

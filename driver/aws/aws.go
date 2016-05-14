@@ -118,12 +118,12 @@ func newCreateCommand() cli.Command {
 
 			region, ok := profile[*sess.Config.Region]
 			if !ok {
-				fmt.Println("Please run sync in the region of choice")
+				fmt.Fprintln(os.Stderr, "Please run sync in the region of choice")
 				os.Exit(1)
 			}
 			p, ok := region[c.String("profile")]
 			if !ok {
-				fmt.Println("Unable to find matching VPC profile")
+				fmt.Fprintln(os.Stderr, "Unable to find matching VPC profile")
 				os.Exit(1)
 			}
 
@@ -143,7 +143,7 @@ func newCreateCommand() cli.Command {
 						}
 					}
 				} else {
-					fmt.Fprintln(os.Stderr, state.err.Error())
+					fmt.Fprintln(os.Stderr, state.err)
 				}
 			}
 
@@ -174,7 +174,7 @@ func newImageCommand() cli.Command {
 				Description: aws.String(desc),
 			})
 			if err != nil {
-				fmt.Println(err.Error())
+				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			} else {
 				fmt.Println(*resp.ImageId)

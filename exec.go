@@ -103,13 +103,13 @@ func runPlaybook(c *cli.Context) error {
 	)
 
 	if len(c.Args()) == 0 {
-		fmt.Println("No playbook specified")
+		fmt.Fprintln(os.Stderr, "No playbook specified")
 		os.Exit(1)
 	}
 
 	r, err := os.Open(c.Args()[0])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer r.Close()
@@ -160,7 +160,7 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 			continue // skip ahead
 		}
 		if err := a.Send(cmdr); err != nil {
-			fmt.Fprintln(os.Stderr, host, "-", err.Error())
+			fmt.Fprintln(os.Stderr, host, "-", err)
 			collect <- err
 			return
 		}
@@ -174,7 +174,7 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 				continue // skip ahead
 			}
 			if err := a.Send(cmdr); err != nil {
-				fmt.Fprintln(os.Stderr, host, "-", err.Error())
+				fmt.Fprintln(os.Stderr, host, "-", err)
 				collect <- err
 				return
 			}
@@ -186,14 +186,14 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 			}
 			respStream, err := a.Act(cmdr)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err.Error())
+				fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err)
 				collect <- err
 				return
 			}
 			for output := range respStream {
 				text, err = output.Data()
 				if err != nil {
-					fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err.Error())
+					fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err)
 					// steam will end because error state delivers last
 				} else {
 					fmt.Println(host, "-", p.Name, "-", text)

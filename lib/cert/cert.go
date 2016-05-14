@@ -151,7 +151,7 @@ func GenerateServerCertificate(certpath, org string, hosts []string) (ca, cert, 
 func GenerateCACertificate(org, certpath string) {
 	tmpl, err := NewX509Certificate(org)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	tmpl.IsCA = true
@@ -161,25 +161,25 @@ func GenerateCACertificate(org, certpath string) {
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	err = WriteCertificate(path.Join(certpath, "ca.pem"), derBytes)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	err = WriteKey(path.Join(certpath, "ca-key.pem"), priv)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -187,7 +187,7 @@ func GenerateCACertificate(org, certpath string) {
 func GenerateClientCertificate(org, certpath string) {
 	tmpl, err := NewX509Certificate(org)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
@@ -195,36 +195,36 @@ func GenerateClientCertificate(org, certpath string) {
 
 	caCert, err := LoadCACert(certpath)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	err = WriteCertificate(path.Join(certpath, "cert.pem"), derBytes)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	err = WriteKey(path.Join(certpath, "key.pem"), priv)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

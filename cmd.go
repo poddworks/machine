@@ -64,7 +64,7 @@ func EnvCommand() cli.Command {
 				name = c.Args().First()
 			)
 			if name == "" {
-				fmt.Println("Required argument `name` missing")
+				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
 				os.Exit(1)
 			}
 
@@ -72,7 +72,7 @@ func EnvCommand() cli.Command {
 
 			instMeta, ok := instList[name]
 			if !ok {
-				fmt.Println("Provided instance [", name, "] not found")
+				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not found")
 				os.Exit(1)
 			}
 
@@ -135,7 +135,7 @@ func TlsCommand() cli.Command {
 				Action: func(c *cli.Context) error {
 					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
-						fmt.Println(err.Error())
+						fmt.Fprintln(os.Stderr, err)
 						os.Exit(1)
 					}
 					cert.GenerateCACertificate(org, certpath)
@@ -153,11 +153,11 @@ func TlsCommand() cli.Command {
 				Action: func(c *cli.Context) error {
 					_, Cert, Key := generateServerCertificate(c)
 					if err := ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
-						fmt.Println(err.Error())
+						fmt.Fprintln(os.Stderr, err)
 						os.Exit(1)
 					}
 					if err := ioutil.WriteFile(Key.Name, Key.Buf.Bytes(), 0600); err != nil {
-						fmt.Println(err.Error())
+						fmt.Fprintln(os.Stderr, err)
 						os.Exit(1)
 					}
 					return nil
@@ -194,7 +194,7 @@ func TlsCommand() cli.Command {
 					)
 
 					if name == "" {
-						fmt.Println("Required argument `name` missing")
+						fmt.Fprintln(os.Stderr, "Required argument `name` missing")
 						os.Exit(1)
 					}
 
@@ -205,7 +205,7 @@ func TlsCommand() cli.Command {
 					inst.SetProvision(c.Bool("is-new"))
 
 					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-						fmt.Println(err.Error())
+						fmt.Fprintln(os.Stderr, err)
 						os.Exit(1)
 					}
 					instList[name] = &mach.Instance{
@@ -224,7 +224,7 @@ func TlsCommand() cli.Command {
 func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock) {
 	var hosts = make([]string, 0)
 	if hostname := c.String("host"); hostname == "" {
-		fmt.Println("You must provide hostname to create Certificate for")
+		fmt.Fprintln(os.Stderr, "You must provide hostname to create Certificate for")
 		os.Exit(1)
 	} else {
 		hosts = append(hosts, hostname)
@@ -232,12 +232,12 @@ func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock) {
 	hosts = append(hosts, c.StringSlice("altname")...)
 	org, certpath, err := mach.ParseCertArgs(c)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	return

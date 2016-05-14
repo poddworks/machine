@@ -30,7 +30,7 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		}
 	}
 	if resp, err := svc.DescribeVpcs(vparam); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	} else if len(resp.Vpcs) == 0 {
 		fmt.Fprint(os.Stderr, "Unexpected state: You don't have Default VPC")
@@ -49,7 +49,7 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		},
 	}
 	if resp, err := svc.DescribeSubnets(subparam); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	} else if len(resp.Subnets) == 0 {
 		fmt.Fprint(os.Stderr, "Unexpected state: You don't have ANY subnets")
@@ -68,7 +68,7 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		},
 	}
 	if resp, err := svc.DescribeSecurityGroups(sgparam); err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	} else if len(resp.SecurityGroups) == 0 {
 		fmt.Fprint(os.Stderr, "Unexpected state: You don't have ANY security group")

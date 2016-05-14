@@ -79,12 +79,12 @@ func getConfigPath() (string, error) {
 func (a AWSProfile) Load() AWSProfile {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer origin.Close()
@@ -95,12 +95,12 @@ func (a AWSProfile) Load() AWSProfile {
 func (a AWSProfile) Dump() {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer origin.Close()
