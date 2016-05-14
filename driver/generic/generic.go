@@ -55,6 +55,11 @@ func newCreateCommand() cli.Command {
 				os.Exit(1)
 			}
 
+			if user == "" || cert == "" {
+				fmt.Fprintln(os.Stderr, "Missing required remote auth info")
+				os.Exit(1)
+			}
+
 			// Load from Instance Roster to register and defer write back
 			defer instList.Load().Dump()
 
