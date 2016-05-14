@@ -95,7 +95,7 @@ func (h *Host) SetProvision(provision bool) {
 func (h *Host) waitSSH() error {
 	host, _ := h.cmdr.Host()
 	// Wait for SSH daemon online
-	const attempts = 5
+	const attempts = 12
 	var idx = 0
 	for ; idx < attempts; idx++ {
 		if _, err := h.cmdr.Run("date"); err == nil {
@@ -125,8 +125,18 @@ func (h *Host) InstallDockerEngine(host string) error {
 		h.cmdr.Sudo()
 		for _, cmd := range install_docker_stemps {
 			fmt.Println(host, "-", cmd)
-			if err := h.cmdr.RunQuiet(fmt.Sprintf("bash -c '%s'", cmd)); err != nil {
-				return err
+			const attempts = 3
+			var idx = 0
+			for ; idx < attempts; idx++ {
+				if err := h.cmdr.RunQuiet(fmt.Sprintf("bash -c '%s'", cmd)); err != nil {
+					fmt.Fprintf(os.Stderr, "%s - %s\n", host, err)
+					time.Sleep(1 * time.Second)
+				} else {
+					break // sucess!!
+				}
+			}
+			if idx == attempts {
+				return fmt.Errorf("%s install Docker Engine failed", host)
 			}
 			// Next command in line!
 		}
