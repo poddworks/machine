@@ -21,9 +21,6 @@ func init() {
 }
 
 var (
-	// Config reference for AWS API
-	sess *session.Session
-
 	// AWS EC2 client object for establishing command
 	svc *ec2.EC2
 )
@@ -49,14 +46,33 @@ func NewCommand() cli.Command {
 			if id, secret, token := c.String("key"), c.String("secret"), c.String("token"); id != "" && secret != "" {
 				cfg = cfg.WithCredentials(credentials.NewStaticCredentials(id, secret, token))
 			}
-			sess = session.New(cfg)
-			svc = ec2.New(sess)
+			svc = ec2.New(session.New(cfg))
 			return nil
 		},
 		Subcommands: []cli.Command{
 			newConfigCommand(),
 			newCreateCommand(),
 			newImageCommand(),
+			newRmCommand(),
+		},
+	}
+}
+
+func newRmCommand() cli.Command {
+	return cli.Command{
+		Name:  "rm",
+		Usage: "Remove and Terminate instance",
+		Action: func(c *cli.Context) error {
+			_, err := svc.TerminateInstances(&ec2.TerminateInstancesInput{
+				InstanceIds: []*string{
+					aws.String(c.Args().First()),
+				},
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return nil
 		},
 	}
 }
@@ -116,7 +132,7 @@ func newCreateCommand() cli.Command {
 			// Load from AWS configuration from last sync
 			profile.Load()
 
-			region, ok := profile[*sess.Config.Region]
+			region, ok := profile[c.GlobalString("region")]
 			if !ok {
 				fmt.Fprintln(os.Stderr, "Please run sync in the region of choice")
 				os.Exit(1)

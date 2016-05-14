@@ -26,7 +26,7 @@ func syncFromAWS() cli.Command {
 		Action: func(c *cli.Context) error {
 			var profile = make(AWSProfile)
 			defer profile.Load().Dump()
-			p := &Profile{Name: c.String("name"), Region: *sess.Config.Region}
+			p := &Profile{Name: c.String("name"), Region: c.GlobalString("region")}
 			vpcInit(c, &p.VPC)
 			amiInit(c, p)
 			keypairInit(c, p)
@@ -62,7 +62,7 @@ func getFromAWSConfig() cli.Command {
 				profile = make(AWSProfile)
 
 				name   = c.String("name")
-				region = *sess.Config.Region
+				region = c.GlobalString("region")
 
 				qpath = c.Args().First()
 			)

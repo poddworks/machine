@@ -28,6 +28,7 @@ func main() {
 	}
 	app.Commands = []cli.Command{
 		ListInstanceCommand(),
+		RmInstanceCommand(),
 		EnvCommand(),
 		ExecCommand(),
 		TlsCommand(),

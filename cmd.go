@@ -50,6 +50,51 @@ func ListInstanceCommand() cli.Command {
 	}
 }
 
+func RmInstanceCommand() cli.Command {
+	return cli.Command{
+		Name:            "rm",
+		Usage:           "Remove and terminate instance",
+		SkipFlagParsing: true,
+		Action: func(c *cli.Context) error {
+			var (
+				instList = make(mach.RegisteredInstances)
+
+				lastIdx = len(os.Args) - 1
+
+				iden = os.Args[lastIdx]
+
+				newArgs []string
+			)
+
+			// Load from Instance Roster and defer write back
+			defer instList.Load().Dump()
+
+			info, ok := instList[iden]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Target machine not found")
+				os.Exit(1)
+			}
+
+			// Remove the instance by driver
+			switch info.Driver {
+			case "aws":
+				newArgs = append([]string{"machine", "aws"}, os.Args[2:lastIdx]...)
+				newArgs = append(newArgs, "rm", iden)
+				c.App.Run(newArgs)
+				delete(instList, iden)
+				break
+			case "generic":
+			default:
+				// NOOP
+				delete(instList, iden)
+				break
+			}
+
+			return nil
+		},
+	}
+}
+
 func EnvCommand() cli.Command {
 	return cli.Command{
 		Name:  "env",
