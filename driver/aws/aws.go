@@ -114,6 +114,8 @@ func newCreateCommand() cli.Command {
 				user = c.GlobalString("user")
 				cert = c.GlobalString("cert")
 
+				name = c.Args().First()
+
 				useDocker = c.Bool("use-docker")
 
 				instList = make(mach.RegisteredInstances)
@@ -127,6 +129,17 @@ func newCreateCommand() cli.Command {
 			// Load from AWS configuration from last sync
 			profile.Load()
 
+			// Load from Instance Roster to register and defer write back
+			defer instList.Load().Dump()
+
+			if name == "" {
+				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
+				os.Exit(1)
+			} else if _, ok := instList[name]; ok {
+				fmt.Fprintln(os.Stderr, "Machine exist")
+				os.Exit(1)
+			}
+
 			region, ok := profile[c.GlobalString("region")]
 			if !ok {
 				fmt.Fprintln(os.Stderr, "Please run sync in the region of choice")
@@ -138,16 +151,13 @@ func newCreateCommand() cli.Command {
 				os.Exit(1)
 			}
 
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
-
 			// Invoke EC2 launch procedure
-			for state := range newEC2Inst(c, p, user, cert, useDocker) {
+			for state := range newEC2Inst(c, p, user, cert, name, useDocker) {
 				if addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376"); state.err == nil {
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 					if useDocker {
-						instList[*state.InstanceId] = &mach.Instance{
-							Name:       *state.InstanceId,
+						instList[state.name] = &mach.Instance{
+							Id:         *state.InstanceId,
 							Driver:     "aws",
 							DockerHost: addr,
 							State:      "running",

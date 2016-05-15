@@ -31,7 +31,6 @@ func newCreateCommand() cli.Command {
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-			cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
 		},
 		Action: func(c *cli.Context) error {
 			var (
@@ -42,7 +41,7 @@ func newCreateCommand() cli.Command {
 				hostname = c.String("host")
 				altnames = c.StringSlice("altname")
 
-				name    = c.String("name")
+				name    = c.Args().First()
 				addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
 
 				instList = make(mach.RegisteredInstances)
@@ -50,8 +49,14 @@ func newCreateCommand() cli.Command {
 				inst = mach.NewDockerHost(org, certpath, user, cert)
 			)
 
+			// Load from Instance Roster to register and defer write back
+			defer instList.Load().Dump()
+
 			if name == "" {
 				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
+				os.Exit(1)
+			} else if _, ok := instList[name]; ok {
+				fmt.Fprintln(os.Stderr, "Machine exist")
 				os.Exit(1)
 			}
 
@@ -59,9 +64,6 @@ func newCreateCommand() cli.Command {
 				fmt.Fprintln(os.Stderr, "Missing required remote auth info")
 				os.Exit(1)
 			}
-
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
 
 			if err := inst.InstallDockerEngine(hostname); err != nil {
 				fmt.Fprintln(os.Stderr, err)
@@ -72,7 +74,7 @@ func newCreateCommand() cli.Command {
 				os.Exit(1)
 			}
 			instList[name] = &mach.Instance{
-				Name:       name,
+				Id:         name,
 				Driver:     "generic",
 				DockerHost: addr,
 				State:      "running",

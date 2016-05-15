@@ -21,7 +21,21 @@ var (
 
 type ec2state struct {
 	*ec2.Instance
-	err error
+	name string
+	err  error
+}
+
+func newEc2State(inst *ec2.Instance, err error) ec2state {
+	return ec2state{inst, "", err}
+}
+
+func getEc2InstanceName(inst *ec2.Instance) (name string) {
+	for _, t := range inst.Tags {
+		if *t.Key == "Name" {
+			return *t.Value
+		}
+	}
+	return
 }
 
 func ec2Init() {
@@ -47,15 +61,18 @@ func ec2Init() {
 		} else {
 			for _, r := range resp.Reservations {
 				for _, inst := range r.Instances {
+					var instanceName = getEc2InstanceName(inst)
+					info, ok := instList[instanceName]
+					if !ok {
+						info = &mach.Instance{Id: *inst.InstanceId}
+					}
 					if *inst.State.Name == "terminated" {
-						delete(instList, *inst.InstanceId)
-					} else {
-						info, ok := instList[*inst.InstanceId]
-						if !ok {
-							info = &mach.Instance{Name: *inst.InstanceId}
-						} else if info.Name == "" {
-							info.Name = *inst.InstanceId
+						if info.Id == *inst.InstanceId {
+							delete(instList, instanceName)
+						} else {
+							continue // ignore
 						}
+					} else {
 						info.Driver = "aws"
 						info.State = *inst.State.Name
 						func() {
@@ -65,14 +82,7 @@ func ec2Init() {
 							}
 							info.DockerHost = addr
 						}()
-						func() {
-							var tags = make([]mach.Tag, 0, len(inst.Tags))
-							for _, t := range inst.Tags {
-								tags = append(tags, mach.Tag{K: *t.Key, V: *t.Value})
-							}
-							info.Tag = tags
-						}()
-						instList[*inst.InstanceId] = info
+						instList[instanceName] = info
 					}
 				}
 			}
@@ -165,21 +175,21 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 		defer close(out)
 		param := &ec2.DescribeInstancesInput{InstanceIds: []*string{instId}}
 		if err := svc.WaitUntilInstanceRunning(param); err != nil {
-			out <- ec2state{nil, fmt.Errorf("%s - %s", *instId, err)}
+			out <- newEc2State(nil, fmt.Errorf("%s - %s", *instId, err))
 			return
 		}
 		resp, err := svc.DescribeInstances(param)
 		if err != nil {
-			out <- ec2state{nil, fmt.Errorf("%s - %s", *instId, err)}
+			out <- newEc2State(nil, fmt.Errorf("%s - %s", *instId, err))
 		} else {
-			out <- ec2state{resp.Reservations[0].Instances[0], nil}
+			out <- newEc2State(resp.Reservations[0].Instances[0], nil)
 		}
 		// NOTE: this should end here
 	}()
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, user, cert string, useDocker bool) <-chan ec2state {
+func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDocker bool) <-chan ec2state {
 	var (
 		amiId            = c.String("ami-id")
 		num2Launch       = c.Int("count")
@@ -280,26 +290,38 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert string, useDocker b
 		go func() {
 			defer close(out)
 			wg.Add(len(instances))
-			for _, inst := range instances {
-				go func(ch <-chan ec2state) {
-					var (
-						state = <-ch
-
-						publicIP  = *state.PublicIpAddress
-						privateIP = *state.PrivateIpAddress
-					)
+			for idx, inst := range instances {
+				go func(index int, ch <-chan ec2state) {
+					var state = <-ch
+					if num2Launch > 1 {
+						state.name = fmt.Sprintf("%s-%03d", name, index)
+					} else {
+						state.name = name
+					}
+					tagparam := &ec2.CreateTagsInput{
+						Tags: []*ec2.Tag{
+							{
+								Key:   aws.String("Name"),
+								Value: aws.String(state.name),
+							},
+						},
+						Resources: []*string{
+							state.InstanceId,
+						},
+					}
+					_, state.err = svc.CreateTags(tagparam)
 					if useDocker {
 						host := mach.NewDockerHost(org, certpath, user, cert)
 						if state.err == nil {
-							state.err = host.InstallDockerEngine(publicIP)
+							state.err = host.InstallDockerEngine(*state.PublicIpAddress)
 						}
 						if state.err == nil {
-							state.err = host.InstallDockerEngineCertificate(publicIP, privateIP)
+							state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
 						}
 					}
 					out <- state
 					wg.Done()
-				}(ec2_WaitForReady(inst.InstanceId))
+				}(idx+1, ec2_WaitForReady(inst.InstanceId))
 			}
 			wg.Wait()
 		}()

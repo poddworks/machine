@@ -29,17 +29,15 @@ func ListInstanceCommand() cli.Command {
 
 			instList.Load() // Load instance metadata
 
-			table.SetHeader([]string{"Id", "Name", "DockerHost", "Driver", "State", "Tag"})
+			table.SetHeader([]string{"Name", "DockerHost", "Driver", "State"})
 			table.SetBorder(false)
-			for iden, inst := range instList {
+			for name, inst := range instList {
 				var dockerhost = inst.DockerHost.String()
 				var oneRow = []string{
-					iden,                               // Id
-					inst.Name,                          // Name
-					dockerhost,                         // DockerHost
-					inst.Driver,                        // Driver
-					inst.State,                         // State
-					strings.Join(inst.TagSlice(), ","), // Tags
+					name,        // Name
+					dockerhost,  // DockerHost
+					inst.Driver, // Driver
+					inst.State,  // State
 				}
 				table.Append(oneRow)
 			}
@@ -61,7 +59,7 @@ func RmInstanceCommand() cli.Command {
 
 				lastIdx = len(os.Args) - 1
 
-				iden = os.Args[lastIdx]
+				name = os.Args[lastIdx]
 
 				newArgs []string
 			)
@@ -69,7 +67,7 @@ func RmInstanceCommand() cli.Command {
 			// Load from Instance Roster and defer write back
 			defer instList.Load().Dump()
 
-			info, ok := instList[iden]
+			info, ok := instList[name]
 			if !ok {
 				fmt.Fprintln(os.Stderr, "Target machine not found")
 				os.Exit(1)
@@ -79,14 +77,14 @@ func RmInstanceCommand() cli.Command {
 			switch info.Driver {
 			case "aws":
 				newArgs = append([]string{"machine", "aws"}, os.Args[2:lastIdx]...)
-				newArgs = append(newArgs, "rm", iden)
+				newArgs = append(newArgs, "rm", info.Id)
 				c.App.Run(newArgs)
-				delete(instList, iden)
+				delete(instList, name)
 				break
 			case "generic":
 			default:
 				// NOOP
-				delete(instList, iden)
+				delete(instList, name)
 				break
 			}
 
@@ -253,12 +251,17 @@ func TlsCommand() cli.Command {
 						fmt.Fprintln(os.Stderr, err)
 						os.Exit(1)
 					}
-					instList[name] = &mach.Instance{
-						Name:       name,
-						Driver:     driver,
-						DockerHost: addr,
-						State:      "running",
+
+					info, ok := instList[name]
+					if !ok {
+						info = &mach.Instance{Id: name, Driver: driver}
 					}
+					info.DockerHost = addr
+					info.State = "running"
+
+					// Update current records
+					instList[name] = info
+
 					return nil
 				},
 			},
