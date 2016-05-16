@@ -23,6 +23,9 @@ func init() {
 var (
 	// AWS EC2 client object for establishing command
 	svc *ec2.EC2
+
+	// Instance Roster
+	instList = make(mach.RegisteredInstances)
 )
 
 func NewCommand() cli.Command {
@@ -52,8 +55,40 @@ func NewCommand() cli.Command {
 		Subcommands: []cli.Command{
 			newConfigCommand(),
 			newCreateCommand(),
-			newImageCommand(),
+			newStartCommand(),
 			newRmCommand(),
+			newImageCommand(),
+		},
+	}
+}
+
+func newStartCommand() cli.Command {
+	return cli.Command{
+		Name:  "start",
+		Usage: "Start instance",
+		Action: func(c *cli.Context) error {
+			var name = c.Args().First()
+
+			// Load from Instance Roster
+			instList.Load()
+
+			info, ok := instList[name]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Target machine not found")
+				os.Exit(1)
+			}
+
+			_, err := svc.StartInstances(&ec2.StartInstancesInput{
+				InstanceIds: []*string{
+					aws.String(info.Id),
+				},
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+
+			return nil
 		},
 	}
 }
@@ -63,9 +98,20 @@ func newRmCommand() cli.Command {
 		Name:  "rm",
 		Usage: "Remove and Terminate instance",
 		Action: func(c *cli.Context) error {
+			var name = c.Args().First()
+
+			// Load from Instance Roster
+			instList.Load()
+
+			info, ok := instList[name]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Target machine not found")
+				os.Exit(1)
+			}
+
 			_, err := svc.TerminateInstances(&ec2.TerminateInstancesInput{
 				InstanceIds: []*string{
-					aws.String(c.Args().First()),
+					aws.String(info.Id),
 				},
 			})
 			if err != nil {
@@ -117,8 +163,6 @@ func newCreateCommand() cli.Command {
 				name = c.Args().First()
 
 				useDocker = c.Bool("use-docker")
-
-				instList = make(mach.RegisteredInstances)
 			)
 
 			if user == "" || cert == "" {

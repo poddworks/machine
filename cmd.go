@@ -15,14 +15,17 @@ import (
 	"strings"
 )
 
+var (
+	// Instance roster
+	instList = make(mach.RegisteredInstances)
+)
+
 func ListInstanceCommand() cli.Command {
 	return cli.Command{
 		Name:  "ls",
 		Usage: "List cached Docker Engine instance info",
 		Action: func(c *cli.Context) error {
 			var (
-				instList = make(mach.RegisteredInstances)
-
 				// Prepare table render
 				table = tablewriter.NewWriter(os.Stdout)
 			)
@@ -48,15 +51,13 @@ func ListInstanceCommand() cli.Command {
 	}
 }
 
-func RmInstanceCommand() cli.Command {
+func InstanceCommand(action string) cli.Command {
 	return cli.Command{
-		Name:            "rm",
-		Usage:           "Remove and terminate instance",
+		Name:            action,
+		Usage:           fmt.Sprintf("%s%s instance", strings.ToTitle(action[0:1]), action[1:]),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
 			var (
-				instList = make(mach.RegisteredInstances)
-
 				lastIdx = len(os.Args) - 1
 
 				name = os.Args[lastIdx]
@@ -64,8 +65,8 @@ func RmInstanceCommand() cli.Command {
 				newArgs []string
 			)
 
-			// Load from Instance Roster and defer write back
-			defer instList.Load().Dump()
+			// Load from Instance Roster
+			instList.Load()
 
 			info, ok := instList[name]
 			if !ok {
@@ -77,14 +78,12 @@ func RmInstanceCommand() cli.Command {
 			switch info.Driver {
 			case "aws":
 				newArgs = append([]string{"machine", "aws"}, os.Args[2:lastIdx]...)
-				newArgs = append(newArgs, "rm", info.Id)
+				newArgs = append(newArgs, action, name)
 				c.App.Run(newArgs)
-				delete(instList, name)
 				break
 			case "generic":
 			default:
 				// NOOP
-				delete(instList, name)
 				break
 			}
 
@@ -101,8 +100,6 @@ func EnvCommand() cli.Command {
 			var (
 				usr, _   = user.Current()
 				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", usr.HomeDir, 1)
-
-				instList = make(mach.RegisteredInstances)
 
 				name = c.Args().First()
 			)
@@ -230,8 +227,6 @@ func TlsCommand() cli.Command {
 						name    = c.String("name")
 						driver  = c.String("driver")
 						addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
-
-						instList = make(mach.RegisteredInstances)
 
 						inst = mach.NewDockerHost(org, certpath, user, cert)
 					)
