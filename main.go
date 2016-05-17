@@ -30,7 +30,7 @@ func main() {
 		ListInstanceCommand(),
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
-		InstanceCommand("rm", "Remove"),
+		InstanceCommand("rm", "Remove And Terminate"),
 		EnvCommand(),
 		ExecCommand(),
 		TlsCommand(),
