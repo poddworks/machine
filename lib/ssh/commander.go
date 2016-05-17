@@ -232,7 +232,11 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 }
 
 func (sshCmd *SSHCommander) Close() error {
-	return sshCmd.sshAuthSock.Close()
+	if sshCmd.sshAuthSock != nil {
+		return sshCmd.sshAuthSock.Close()
+	} else {
+		return nil
+	}
 }
 
 func New(cfg Config) Commander {
