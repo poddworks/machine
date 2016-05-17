@@ -51,10 +51,10 @@ func ListInstanceCommand() cli.Command {
 	}
 }
 
-func InstanceCommand(action string) cli.Command {
+func InstanceCommand(cmd, act string) cli.Command {
 	return cli.Command{
-		Name:            action,
-		Usage:           fmt.Sprintf("%s%s instance", strings.ToTitle(action[0:1]), action[1:]),
+		Name:            cmd,
+		Usage:           fmt.Sprintf("%s instance", act),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
 			var (
@@ -78,7 +78,7 @@ func InstanceCommand(action string) cli.Command {
 			switch info.Driver {
 			case "aws":
 				newArgs = append([]string{"machine", "aws"}, os.Args[2:lastIdx]...)
-				newArgs = append(newArgs, action, name)
+				newArgs = append(newArgs, cmd, name)
 				c.App.Run(newArgs)
 				break
 			case "generic":
