@@ -154,6 +154,8 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 		host, _ = cmdr.Host()
 	)
 
+	defer cmdr.Close()
+
 	for _, a := range playbook.Archive {
 		fmt.Println(host, "-", "sending", "-", a.Source(cmdr), "-", a.Dest())
 		if dryrun {

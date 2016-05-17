@@ -35,6 +35,9 @@ type Commander interface {
 
 	// Elevate commander role and return a Deferr Target
 	Sudo() SudoSession
+
+	// Close Connection and cleanup
+	Close() error
 }
 
 type SudoSession interface {

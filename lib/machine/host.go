@@ -117,6 +117,7 @@ func (h *Host) InstallDockerEngine(host string) error {
 	}
 	ssh_config := ssh.Config{User: h.User, Server: host, Key: h.Cert, Port: "22"}
 	h.cmdr = ssh.New(ssh_config)
+	defer h.cmdr.Close()
 
 	fmt.Println(host, "- install Docker Engine")
 	if timeout := h.waitSSH(); timeout != nil {
@@ -151,6 +152,7 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 	}
 	ssh_config := ssh.Config{User: h.User, Server: host, Key: h.Cert, Port: "22"}
 	h.cmdr = ssh.New(ssh_config)
+	defer h.cmdr.Close()
 
 	var subAltNames = []string{
 		host,

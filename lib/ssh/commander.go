@@ -15,9 +15,10 @@ import (
 )
 
 type SSHCommander struct {
-	ssh_config *ssh.ClientConfig
-	addr       string
-	sudo       bool
+	ssh_config  *ssh.ClientConfig
+	sshAuthSock net.Conn
+	addr        string
+	sudo        bool
 }
 
 func (sshCmd *SSHCommander) connect() (*ssh.Session, error) {
@@ -230,20 +231,29 @@ func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
 	}
 }
 
+func (sshCmd *SSHCommander) Close() error {
+	return sshCmd.sshAuthSock.Close()
+}
+
 func New(cfg Config) Commander {
-	auths := []ssh.AuthMethod{}
+	var (
+		auths = []ssh.AuthMethod{}
+
+		sshAuthSock net.Conn
+	)
 	if cfg.Password != "" {
 		auths = append(auths, ssh.Password(cfg.Password))
 	}
-	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
-		auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
-		defer sshAgent.Close()
+	if conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+		auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
+		sshAuthSock = conn
 	}
 	if pubkey, err := cfg.GetKeyFile(); err == nil {
 		auths = append(auths, ssh.PublicKeys(pubkey))
 	}
 	return &SSHCommander{
-		ssh_config: &ssh.ClientConfig{User: cfg.User, Auth: auths},
-		addr:       cfg.Server + ":" + cfg.Port,
+		ssh_config:  &ssh.ClientConfig{User: cfg.User, Auth: auths},
+		sshAuthSock: sshAuthSock,
+		addr:        cfg.Server + ":" + cfg.Port,
 	}
 }
