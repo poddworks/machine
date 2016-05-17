@@ -132,8 +132,8 @@ func newRmCommand() cli.Command {
 		Action: func(c *cli.Context) error {
 			var name = c.Args().First()
 
-			// Load from Instance Roster
-			instList.Load()
+			// Load from Instance Roster to register and defer write back
+			defer instList.Load().Dump()
 
 			info, ok := instList[name]
 			if !ok {
@@ -150,6 +150,9 @@ func newRmCommand() cli.Command {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
+
+			delete(instList, name)
+
 			return nil
 		},
 	}
