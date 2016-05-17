@@ -15,7 +15,13 @@ func ami_getInfo() (ami []*ec2.Image) {
 			{
 				Name: aws.String("owner-id"),
 				Values: []*string{
-					aws.String("564092832996"),
+					aws.String("099720109477"),
+				},
+			},
+			{
+				Name: aws.String("name"),
+				Values: []*string{
+					aws.String("ubuntu/images/hvm-ssd/ubuntu-trusty-14.04-amd64-server-20160114.5"),
 				},
 			},
 		},
