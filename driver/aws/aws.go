@@ -56,6 +56,7 @@ func NewCommand() cli.Command {
 			newConfigCommand(),
 			newCreateCommand(),
 			newStartCommand(),
+			newStopCommand(),
 			newRmCommand(),
 			newImageCommand(),
 		},
@@ -79,6 +80,37 @@ func newStartCommand() cli.Command {
 			}
 
 			_, err := svc.StartInstances(&ec2.StartInstancesInput{
+				InstanceIds: []*string{
+					aws.String(info.Id),
+				},
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newStopCommand() cli.Command {
+	return cli.Command{
+		Name:  "stop",
+		Usage: "Stop instance",
+		Action: func(c *cli.Context) error {
+			var name = c.Args().First()
+
+			// Load from Instance Roster
+			instList.Load()
+
+			info, ok := instList[name]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Target machine not found")
+				os.Exit(1)
+			}
+
+			_, err := svc.StopInstances(&ec2.StopInstancesInput{
 				InstanceIds: []*string{
 					aws.String(info.Id),
 				},
