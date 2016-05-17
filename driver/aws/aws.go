@@ -71,7 +71,7 @@ func newStartCommand() cli.Command {
 			var name = c.Args().First()
 
 			// Load from Instance Roster
-			instList.Load()
+			defer instList.Load().Dump()
 
 			info, ok := instList[name]
 			if !ok {
@@ -89,6 +89,15 @@ func newStartCommand() cli.Command {
 				os.Exit(1)
 			}
 
+			if state := <-ec2_WaitForReady(&info.Id); state.err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			} else {
+				addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
+				info.DockerHost = addr
+				info.State = "running"
+			}
+
 			return nil
 		},
 	}
@@ -102,7 +111,7 @@ func newStopCommand() cli.Command {
 			var name = c.Args().First()
 
 			// Load from Instance Roster
-			instList.Load()
+			defer instList.Load().Dump()
 
 			info, ok := instList[name]
 			if !ok {
@@ -119,6 +128,9 @@ func newStopCommand() cli.Command {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
+
+			info.DockerHost = nil
+			info.State = "stopped"
 
 			return nil
 		},
