@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/jeffjen/machine/lib/ssh"
+	"github.com/jeffjen/yaml"
 
 	"github.com/codegangsta/cli"
-	"gopkg.in/yaml.v2"
 
 	"fmt"
 	"io"
