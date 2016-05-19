@@ -92,6 +92,34 @@ func InstanceCommand(cmd, act string) cli.Command {
 	}
 }
 
+func IPCommand() cli.Command {
+	return cli.Command{
+		Name:  "ip",
+		Usage: "Obtain IP address of the Docker Engine instance",
+		Action: func(c *cli.Context) error {
+			var name = c.Args().First()
+
+			// Load from Instance Roster
+			instList.Load()
+
+			instMeta, ok := instList[name]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not found")
+				os.Exit(1)
+			}
+			if instMeta.DockerHost == nil {
+				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not running")
+				os.Exit(1)
+			} else {
+				host, _, _ := net.SplitHostPort(instMeta.DockerHost.String())
+				fmt.Println(host)
+			}
+
+			return nil
+		},
+	}
+}
+
 func EnvCommand() cli.Command {
 	return cli.Command{
 		Name:  "env",
