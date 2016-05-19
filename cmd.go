@@ -57,34 +57,25 @@ func InstanceCommand(cmd, act string) cli.Command {
 		Usage:           fmt.Sprintf("%s instance", act),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
-			var (
-				lastIdx = len(os.Args) - 1
-
-				name = os.Args[lastIdx]
-
-				newArgs []string
-			)
-
 			// Load from Instance Roster
 			instList.Load()
 
-			info, ok := instList[name]
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Target machine not found")
-				os.Exit(1)
-			}
-
-			// Remove the instance by driver
-			switch info.Driver {
-			case "aws":
-				newArgs = append([]string{"machine", "aws"}, os.Args[2:lastIdx]...)
-				newArgs = append(newArgs, cmd, name)
-				c.App.Run(newArgs)
-				break
-			case "generic":
-			default:
-				// NOOP
-				break
+			for _, name := range c.Args() {
+				info, ok := instList[name]
+				if !ok {
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
+					continue
+				}
+				// Remove the instance by driver
+				switch info.Driver {
+				case "aws":
+					c.App.Run([]string{"machine", "aws", cmd, name})
+					break
+				case "generic":
+				default:
+					// NOOP
+					break
+				}
 			}
 
 			return nil

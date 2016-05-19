@@ -68,34 +68,34 @@ func newStartCommand() cli.Command {
 		Name:  "start",
 		Usage: "Start instance",
 		Action: func(c *cli.Context) error {
-			var name = c.Args().First()
-
-			// Load from Instance Roster
+			// Load from Instance Roster to register and defer write back
 			defer instList.Load().Dump()
 
-			info, ok := instList[name]
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Target machine not found")
-				os.Exit(1)
-			}
+			for _, name := range c.Args() {
+				info, ok := instList[name]
+				if !ok {
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
+					continue
+				}
 
-			_, err := svc.StartInstances(&ec2.StartInstancesInput{
-				InstanceIds: []*string{
-					aws.String(info.Id),
-				},
-			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
+				_, err := svc.StartInstances(&ec2.StartInstancesInput{
+					InstanceIds: []*string{
+						aws.String(info.Id),
+					},
+				})
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
 
-			if state := <-ec2_WaitForReady(&info.Id); state.err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			} else {
-				addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
-				info.DockerHost = addr
-				info.State = "running"
+				if state := <-ec2_WaitForReady(&info.Id); state.err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				} else {
+					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
+					info.DockerHost = addr
+					info.State = "running"
+				}
 			}
 
 			return nil
@@ -108,29 +108,29 @@ func newStopCommand() cli.Command {
 		Name:  "stop",
 		Usage: "Stop instance",
 		Action: func(c *cli.Context) error {
-			var name = c.Args().First()
-
-			// Load from Instance Roster
+			// Load from Instance Roster to register and defer write back
 			defer instList.Load().Dump()
 
-			info, ok := instList[name]
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Target machine not found")
-				os.Exit(1)
-			}
+			for _, name := range c.Args() {
+				info, ok := instList[name]
+				if !ok {
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
+					continue
+				}
 
-			_, err := svc.StopInstances(&ec2.StopInstancesInput{
-				InstanceIds: []*string{
-					aws.String(info.Id),
-				},
-			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
+				_, err := svc.StopInstances(&ec2.StopInstancesInput{
+					InstanceIds: []*string{
+						aws.String(info.Id),
+					},
+				})
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
 
-			info.DockerHost = nil
-			info.State = "stopped"
+				info.DockerHost = nil
+				info.State = "stopped"
+			}
 
 			return nil
 		},
@@ -142,28 +142,28 @@ func newRmCommand() cli.Command {
 		Name:  "rm",
 		Usage: "Remove and Terminate instance",
 		Action: func(c *cli.Context) error {
-			var name = c.Args().First()
-
 			// Load from Instance Roster to register and defer write back
 			defer instList.Load().Dump()
 
-			info, ok := instList[name]
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Target machine not found")
-				os.Exit(1)
-			}
+			for _, name := range c.Args() {
+				info, ok := instList[name]
+				if !ok {
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
+					continue
+				}
 
-			_, err := svc.TerminateInstances(&ec2.TerminateInstancesInput{
-				InstanceIds: []*string{
-					aws.String(info.Id),
-				},
-			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
+				_, err := svc.TerminateInstances(&ec2.TerminateInstancesInput{
+					InstanceIds: []*string{
+						aws.String(info.Id),
+					},
+				})
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
 
-			delete(instList, name)
+				delete(instList, name)
+			}
 
 			return nil
 		},
