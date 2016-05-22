@@ -6,10 +6,9 @@ import (
 	"github.com/codegangsta/cli"
 
 	"fmt"
-	"os"
 )
 
-func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.SecurityGroup) {
+func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.SecurityGroup, err error) {
 	var vparam *ec2.DescribeVpcsInput
 	if id == "default" {
 		vparam = &ec2.DescribeVpcsInput{
@@ -30,11 +29,9 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		}
 	}
 	if resp, err := svc.DescribeVpcs(vparam); err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return nil, nil, nil, err
 	} else if len(resp.Vpcs) == 0 {
-		fmt.Fprint(os.Stderr, "Unexpected state: You don't have Default VPC")
-		os.Exit(1)
+		return nil, nil, nil, fmt.Errorf("Unexpected state: You don't have Default VPC")
 	} else {
 		vpc = resp.Vpcs[0]
 	}
@@ -49,11 +46,9 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		},
 	}
 	if resp, err := svc.DescribeSubnets(subparam); err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return nil, nil, nil, err
 	} else if len(resp.Subnets) == 0 {
-		fmt.Fprint(os.Stderr, "Unexpected state: You don't have ANY subnets")
-		os.Exit(1)
+		return nil, nil, nil, fmt.Errorf("Unexpected state: You don't have ANY subnets")
 	} else {
 		subs = resp.Subnets
 	}
@@ -68,19 +63,20 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 		},
 	}
 	if resp, err := svc.DescribeSecurityGroups(sgparam); err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return nil, nil, nil, err
 	} else if len(resp.SecurityGroups) == 0 {
-		fmt.Fprint(os.Stderr, "Unexpected state: You don't have ANY security group")
-		os.Exit(1)
+		return nil, nil, nil, fmt.Errorf("Unexpected state: You don't have ANY security group")
 	} else {
 		grps = resp.SecurityGroups
 	}
 	return
 }
 
-func vpcInit(c *cli.Context, profile *VPCProfile) {
-	vpc, subs, grps := vpc_getInfo(c.String("vpc-id"))
+func vpcInit(c *cli.Context, profile *VPCProfile) error {
+	vpc, subs, grps, err := vpc_getInfo(c.String("vpc-id"))
+	if err != nil {
+		return err
+	}
 	profile.Id = vpc.VpcId
 	profile.Cidr = vpc.CidrBlock
 	for _, subnet := range subs {
@@ -99,5 +95,5 @@ func vpcInit(c *cli.Context, profile *VPCProfile) {
 			Name: group.GroupName,
 		})
 	}
-	return
+	return nil
 }

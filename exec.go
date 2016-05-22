@@ -46,8 +46,7 @@ func runCmd(c *cli.Context) error {
 		}
 	}
 	if errCnt > 0 {
-		fmt.Fprintln(os.Stderr, "One or more task failed")
-		os.Exit(1)
+		return cli.NewExitError("One or more task failed", 1)
 	}
 
 	return nil
@@ -86,8 +85,7 @@ func runScript(c *cli.Context) error {
 		}
 	}
 	if errCnt > 0 {
-		fmt.Fprintln(os.Stderr, "One or more task failed")
-		os.Exit(1)
+		return cli.NewExitError("One or more task failed", 1)
 	}
 
 	return nil
@@ -103,14 +101,12 @@ func runPlaybook(c *cli.Context) error {
 	)
 
 	if len(c.Args()) == 0 {
-		fmt.Fprintln(os.Stderr, "No playbook specified")
-		os.Exit(1)
+		return cli.NewExitError("No playbook specified", 1)
 	}
 
 	r, err := os.Open(c.Args()[0])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return cli.NewExitError(err.Error(), 1)
 	}
 	defer r.Close()
 
@@ -122,8 +118,7 @@ func runPlaybook(c *cli.Context) error {
 			if err == io.EOF {
 				break
 			} else {
-				fmt.Fprintln(os.Stderr, "Deocoding playbook content error")
-				os.Exit(1)
+				return cli.NewExitError("Deocoding playbook content error", 1)
 			}
 		}
 		var errCnt = 0
@@ -137,8 +132,7 @@ func runPlaybook(c *cli.Context) error {
 			}
 		}
 		if errCnt > 0 {
-			fmt.Fprintln(os.Stderr, "One or more task failed")
-			os.Exit(1)
+			return cli.NewExitError("One or more task failed", 1)
 		}
 	}
 

@@ -38,15 +38,8 @@ func getEc2InstanceName(inst *ec2.Instance) (name string) {
 	return
 }
 
-func ec2Init() {
-	var (
-		instList = make(mach.RegisteredInstances)
-
-		resp = new(ec2.DescribeInstancesOutput)
-	)
-
-	// Load from Instance Roster to register and defer write back
-	defer instList.Load().Dump()
+func ec2Init() error {
+	var resp = new(ec2.DescribeInstancesOutput)
 
 	for more := true; more; {
 		params := &ec2.DescribeInstancesInput{}
@@ -89,6 +82,8 @@ func ec2Init() {
 			more = (resp.NextToken != nil)
 		}
 	}
+
+	return nil
 }
 
 func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
@@ -146,7 +141,7 @@ func ec2_EbsRoot(size int) (mapping *ec2.BlockDeviceMapping) {
 	}
 }
 
-func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
+func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping, err error) {
 	mapping = make([]*ec2.BlockDeviceMapping, 0)
 	for i, volSize := range size {
 		if volSize <= 0 {
@@ -154,8 +149,8 @@ func ec2_EbsVols(size ...int) (mapping []*ec2.BlockDeviceMapping) {
 			continue
 		}
 		if i >= len(DEVICE_NAME) {
-			fmt.Fprintln(os.Stderr, "You had more volumes then AWS allowed")
-			os.Exit(1)
+			err = fmt.Errorf("You had more volumes then AWS allowed")
+			return
 		}
 		mapping = append(mapping, &ec2.BlockDeviceMapping{
 			DeviceName: aws.String("xvd" + DEVICE_NAME[i]),
@@ -189,10 +184,9 @@ func ec2_WaitForReady(instId *string) <-chan ec2state {
 	return out
 }
 
-func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDocker bool) <-chan ec2state {
+func newEC2Inst(c *cli.Context, profile *Profile, num2Launch int) (instances []*ec2.Instance, err error) {
 	var (
 		amiId            = c.String("ami-id")
-		num2Launch       = c.Int("count")
 		networkACLGroups = c.StringSlice("group")
 		iamProfile       = c.String("iam-role")
 		instVolRoot      = c.Int("root-size")
@@ -203,14 +197,13 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 		instType         = c.String("type")
 		instVols         = c.IntSlice("volume-size")
 
-		org, certpath, _ = mach.ParseCertArgs(c)
+		ec2param = &ec2.RunInstancesInput{
+			InstanceType:     aws.String(instType),
+			MaxCount:         aws.Int64(int64(num2Launch)),
+			MinCount:         aws.Int64(1),
+			SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
+		}
 	)
-	ec2param := &ec2.RunInstancesInput{
-		InstanceType:     aws.String(instType),
-		MaxCount:         aws.Int64(int64(num2Launch)),
-		MinCount:         aws.Int64(1),
-		SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
-	}
 
 	// Step 1: determine the Amazone Machine Image ID
 	if amiId != "" {
@@ -218,8 +211,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 	} else if len(profile.Ami) != 0 {
 		ec2param.ImageId = profile.Ami[0].Id
 	} else {
-		fmt.Fprintln(os.Stderr, "Cannot proceed without an AMI")
-		os.Exit(1)
+		return nil, fmt.Errorf("Cannot proceed without an AMI")
 	}
 
 	// Step 2: determine keypair to use for remote access
@@ -228,8 +220,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 	} else if len(profile.KeyPair) != 0 {
 		ec2param.KeyName = profile.KeyPair[0].Name
 	} else {
-		fmt.Fprintln(os.Stderr, "Cannot proceed without SSH keypair")
-		os.Exit(1)
+		return nil, fmt.Errorf("Cannot proceed without SSH keypair")
 	}
 
 	// Step 3: determine EBS Volume configuration
@@ -237,8 +228,9 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 	if instVolRoot > 0 {
 		ec2param.BlockDeviceMappings = append(ec2param.BlockDeviceMappings, ec2_EbsRoot(instVolRoot))
 	}
-	if len(instVols) > 0 {
-		var mapping = ec2_EbsVols(instVols...)
+	if mapping, brr := ec2_EbsVols(instVols...); brr != nil {
+		return nil, brr
+	} else {
 		ec2param.BlockDeviceMappings = append(ec2param.BlockDeviceMappings, mapping...)
 	}
 
@@ -263,15 +255,13 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 	// Step 6: create tags from spec
 	tag, err := ec2_tagInstanceParam(instTags)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return
 	}
 
 	// Last step: launch + tag instances
 	resp, err := svc.RunInstances(ec2param)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return
 	}
 	if len(tag.Tags) > 0 {
 		for _, inst := range resp.Instances {
@@ -279,54 +269,54 @@ func newEC2Inst(c *cli.Context, profile *Profile, user, cert, name string, useDo
 		}
 		_, err = svc.CreateTags(tag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	}
+
 	fmt.Println("Launched instances...")
+	return resp.Instances, nil
+}
 
-	var waitForReady = func(instances ...*ec2.Instance) <-chan ec2state {
-		var wg sync.WaitGroup
-		out := make(chan ec2state)
-		go func() {
-			defer close(out)
-			wg.Add(len(instances))
-			for idx, inst := range instances {
-				go func(index int, ch <-chan ec2state) {
-					var state = <-ch
-					if num2Launch > 1 {
-						state.name = fmt.Sprintf("%s-%03d", name, index)
-					} else {
-						state.name = name
-					}
-					tagparam := &ec2.CreateTagsInput{
-						Tags: []*ec2.Tag{
-							{
-								Key:   aws.String("Name"),
-								Value: aws.String(state.name),
-							},
+func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDocker bool, instances []*ec2.Instance) <-chan ec2state {
+	var wg sync.WaitGroup
+	out := make(chan ec2state)
+	go func() {
+		defer close(out)
+		wg.Add(len(instances))
+		for idx, inst := range instances {
+			go func(index int, ch <-chan ec2state) {
+				var state = <-ch
+				if num2Launch > 1 {
+					state.name = fmt.Sprintf("%s-%03d", name, index)
+				} else {
+					state.name = name
+				}
+				tagparam := &ec2.CreateTagsInput{
+					Tags: []*ec2.Tag{
+						{
+							Key:   aws.String("Name"),
+							Value: aws.String(state.name),
 						},
-						Resources: []*string{
-							state.InstanceId,
-						},
+					},
+					Resources: []*string{
+						state.InstanceId,
+					},
+				}
+				_, state.err = svc.CreateTags(tagparam)
+				if useDocker {
+					host := mach.NewDockerHost(org, certpath, user, cert)
+					if state.err == nil {
+						state.err = host.InstallDockerEngine(*state.PublicIpAddress)
 					}
-					_, state.err = svc.CreateTags(tagparam)
-					if useDocker {
-						host := mach.NewDockerHost(org, certpath, user, cert)
-						if state.err == nil {
-							state.err = host.InstallDockerEngine(*state.PublicIpAddress)
-						}
-						if state.err == nil {
-							state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
-						}
+					if state.err == nil {
+						state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
 					}
-					out <- state
-					wg.Done()
-				}(idx+1, ec2_WaitForReady(inst.InstanceId))
-			}
-			wg.Wait()
-		}()
-		return out
-	}
-
-	return waitForReady(resp.Instances...)
+				}
+				out <- state
+				wg.Done()
+			}(idx+1, ec2_WaitForReady(inst.InstanceId))
+		}
+		wg.Wait()
+	}()
+	return out
 }

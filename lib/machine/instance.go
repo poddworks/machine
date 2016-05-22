@@ -2,7 +2,6 @@ package machine
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"os/user"
@@ -23,35 +22,30 @@ type Instance struct {
 
 type RegisteredInstances map[string]*Instance
 
-func (r RegisteredInstances) Load() RegisteredInstances {
+func (r RegisteredInstances) Load() error {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer origin.Close()
-	json.NewDecoder(origin).Decode(&r)
-	return r
+	return json.NewDecoder(origin).Decode(&r)
 }
 
-func (r RegisteredInstances) Dump() {
+func (r RegisteredInstances) Dump() error {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer origin.Close()
-	json.NewEncoder(origin).Encode(r)
+	return json.NewEncoder(origin).Encode(r)
 }
 
 func getConfigPath() (string, error) {

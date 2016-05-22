@@ -2,7 +2,6 @@ package aws
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/user"
 	path "path/filepath"
@@ -76,33 +75,28 @@ func getConfigPath() (string, error) {
 	}
 }
 
-func (a AWSProfile) Load() AWSProfile {
+func (a AWSProfile) Load() error {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer origin.Close()
-	json.NewDecoder(origin).Decode(&a)
-	return a
+	return json.NewDecoder(origin).Decode(&a)
 }
 
-func (a AWSProfile) Dump() {
+func (a AWSProfile) Dump() error {
 	conf, err := getConfigPath()
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer origin.Close()
-	json.NewEncoder(origin).Encode(a)
+	return json.NewEncoder(origin).Encode(a)
 }

@@ -5,7 +5,6 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -23,14 +22,32 @@ func syncFromAWS() cli.Command {
 			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
 			cli.StringFlag{Name: "vpc-id", Value: "default", Usage: "AWS VPC identifier"},
 		},
+		Before: func(c *cli.Context) error {
+			if err := profile.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if err := instList.Load(); err != nil {
+				return err
+			}
+			return nil
+		},
 		Action: func(c *cli.Context) error {
-			var profile = make(AWSProfile)
-			defer profile.Load().Dump()
+			defer profile.Dump()
+			defer instList.Dump()
+
 			p := &Profile{Name: c.String("name"), Region: c.GlobalString("region")}
-			vpcInit(c, &p.VPC)
-			amiInit(c, p)
-			keypairInit(c, p)
-			ec2Init()
+			if err := vpcInit(c, &p.VPC); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if err := amiInit(c, p); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if err := keypairInit(c, p); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if err := ec2Init(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
 			if _, ok := profile[p.Region]; !ok {
 				profile[p.Region] = make(RegionProfile)
 			}
@@ -72,16 +89,16 @@ func getFromAWSConfig() cli.Command {
 				return nil // nothing to do here, abort
 			}
 
-			profile.Load() // load stored local AWS config
+			if err := profile.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
 
 			if _, ok := profile[region]; !ok {
-				fmt.Fprintln(os.Stderr, "Selected region had no stored profile")
-				os.Exit(1)
+				return cli.NewExitError("Selected region had no stored profile", 1)
 			}
 
 			if _, ok := profile[region][name]; !ok {
-				fmt.Fprintln(os.Stderr, "Selected name had no profile")
-				os.Exit(1)
+				return cli.NewExitError("Selected name had no profile", 1)
 			}
 
 			// TODO: report config value by dotted notation argument
@@ -98,8 +115,7 @@ func getFromAWSConfig() cli.Command {
 
 				switch val.Kind() {
 				default:
-					fmt.Fprintln(os.Stderr, "Path past leaf node -", qpath)
-					os.Exit(1)
+					return cli.NewExitError(fmt.Sprintln("Path past leaf node -", qpath), 1)
 
 				case reflect.Struct:
 					if chk := val.FieldByName(s); chk.IsValid() {
@@ -107,27 +123,23 @@ func getFromAWSConfig() cli.Command {
 					} else if f, err := getFieldFromTag(val.Type(), s); err == nil {
 						v = val.FieldByName(f).Interface()
 					} else {
-						fmt.Fprintln(os.Stderr, "invalid token -", s)
-						os.Exit(1)
+						return cli.NewExitError(fmt.Sprintln("invalid token -", s), 1)
 					}
 
 				case reflect.Slice:
 					idx, err := strconv.Atoi(s)
 					if err != nil {
-						fmt.Fprintln(os.Stderr, "invalid token -", s)
-						os.Exit(1)
+						return cli.NewExitError(fmt.Sprintln("invalid token -", s), 1)
 					}
 					if idx < 0 || idx >= val.Len() {
-						fmt.Fprintln(os.Stderr, "invalid token -", s)
-						os.Exit(1)
+						return cli.NewExitError(fmt.Sprintln("invalid token -", s), 1)
 					}
 					v = val.Index(idx).Interface()
 				}
 			}
 
 			if output, err := json.MarshalIndent(v, "", "    "); err != nil {
-				fmt.Fprintln(os.Stderr, "Corrupt profile -", name)
-				os.Exit(1)
+				return cli.NewExitError(fmt.Sprintln("Corrupt profile -", name), 1)
 			} else {
 				fmt.Println(string(output))
 			}

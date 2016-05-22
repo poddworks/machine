@@ -4,12 +4,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/codegangsta/cli"
-
-	"fmt"
-	"os"
 )
 
-func ami_getInfo() (ami []*ec2.Image) {
+func ami_getInfo() (ami []*ec2.Image, err error) {
 	amiparam := &ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -27,23 +24,26 @@ func ami_getInfo() (ami []*ec2.Image) {
 		},
 	}
 	if resp, err := svc.DescribeImages(amiparam); err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
+		return nil, err
 	} else {
 		ami = resp.Images
 	}
 	return
 }
 
-func amiInit(c *cli.Context, profile *Profile) {
+func amiInit(c *cli.Context, profile *Profile) error {
 	profile.Ami = make([]AMIProfile, 0)
-	for _, ami := range ami_getInfo() {
-		profile.Ami = append(profile.Ami, AMIProfile{
-			Arch: ami.Architecture,
-			Desc: ami.Description,
-			Id:   ami.ImageId,
-			Name: ami.Name,
-		})
+	if AMIs, err := ami_getInfo(); err != nil {
+		return err
+	} else {
+		for _, ami := range AMIs {
+			profile.Ami = append(profile.Ami, AMIProfile{
+				Arch: ami.Architecture,
+				Desc: ami.Description,
+				Id:   ami.ImageId,
+				Name: ami.Name,
+			})
+		}
 	}
-	return
+	return nil
 }

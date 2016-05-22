@@ -24,13 +24,18 @@ func ListInstanceCommand() cli.Command {
 	return cli.Command{
 		Name:  "ls",
 		Usage: "List cached Docker Engine instance info",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
 		Action: func(c *cli.Context) error {
 			var (
 				// Prepare table render
 				table = tablewriter.NewWriter(os.Stdout)
 			)
-
-			instList.Load() // Load instance metadata
 
 			table.SetHeader([]string{"Name", "DockerHost", "Driver", "State"})
 			table.SetBorder(false)
@@ -56,10 +61,14 @@ func InstanceCommand(cmd, act string) cli.Command {
 		Name:            cmd,
 		Usage:           fmt.Sprintf("%s instance", act),
 		SkipFlagParsing: true,
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
 		Action: func(c *cli.Context) error {
-			// Load from Instance Roster
-			instList.Load()
-
 			for _, name := range c.Args() {
 				info, ok := instList[name]
 				if !ok {
@@ -87,20 +96,22 @@ func IPCommand() cli.Command {
 	return cli.Command{
 		Name:  "ip",
 		Usage: "Obtain IP address of the Docker Engine instance",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
 		Action: func(c *cli.Context) error {
 			var name = c.Args().First()
 
-			// Load from Instance Roster
-			instList.Load()
-
 			instMeta, ok := instList[name]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not found")
-				os.Exit(1)
+				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
 			}
 			if instMeta.DockerHost == nil {
-				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not running")
-				os.Exit(1)
+				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not running"), 1)
 			} else {
 				host, _, _ := net.SplitHostPort(instMeta.DockerHost.String())
 				fmt.Println(host)
@@ -115,6 +126,13 @@ func EnvCommand() cli.Command {
 	return cli.Command{
 		Name:  "env",
 		Usage: "Apply Docker Engine environment for target",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
 		Action: func(c *cli.Context) error {
 			var (
 				usr, _   = user.Current()
@@ -123,16 +141,12 @@ func EnvCommand() cli.Command {
 				name = c.Args().First()
 			)
 			if name == "" {
-				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
-				os.Exit(1)
+				return cli.NewExitError("Required argument `name` missing", 1)
 			}
-
-			instList.Load() // Load instance metadata
 
 			instMeta, ok := instList[name]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "Provided instance [", name, "] not found")
-				os.Exit(1)
+				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
 			}
 
 			fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
@@ -194,11 +208,14 @@ func TlsCommand() cli.Command {
 				Action: func(c *cli.Context) error {
 					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
-						fmt.Fprintln(os.Stderr, err)
-						os.Exit(1)
+						return cli.NewExitError(err.Error(), 1)
 					}
-					cert.GenerateCACertificate(org, certpath)
-					cert.GenerateClientCertificate(org, certpath)
+					if cert.GenerateCACertificate(org, certpath) != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if cert.GenerateClientCertificate(org, certpath) != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
 					return nil
 				},
 			},
@@ -210,14 +227,15 @@ func TlsCommand() cli.Command {
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
 				Action: func(c *cli.Context) error {
-					_, Cert, Key := generateServerCertificate(c)
-					if err := ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
-						fmt.Fprintln(os.Stderr, err)
-						os.Exit(1)
+					_, Cert, Key, err := generateServerCertificate(c)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
 					}
-					if err := ioutil.WriteFile(Key.Name, Key.Buf.Bytes(), 0600); err != nil {
-						fmt.Fprintln(os.Stderr, err)
-						os.Exit(1)
+					if err = ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(Key.Name, Key.Buf.Bytes(), 0600); err != nil {
+						return cli.NewExitError(err.Error(), 1)
 					}
 					return nil
 				},
@@ -234,7 +252,16 @@ func TlsCommand() cli.Command {
 					cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
 					cli.StringFlag{Name: "driver", Value: "generic", Usage: "Hint at what type of driver created this instance"},
 				},
+				Before: func(c *cli.Context) error {
+					if err := instList.Load(); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					} else {
+						return nil
+					}
+				},
 				Action: func(c *cli.Context) error {
+					defer instList.Dump()
+
 					var (
 						org, certpath, _ = mach.ParseCertArgs(c)
 
@@ -251,19 +278,14 @@ func TlsCommand() cli.Command {
 					)
 
 					if name == "" {
-						fmt.Fprintln(os.Stderr, "Required argument `name` missing")
-						os.Exit(1)
+						return cli.NewExitError("Required argument `name` missing", 1)
 					}
-
-					// Load from Instance Roster to register and defer write back
-					defer instList.Load().Dump()
 
 					// Tell host provisioner whether to reuse old Docker Daemon config
 					inst.SetProvision(c.Bool("is-new"))
 
 					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-						fmt.Fprintln(os.Stderr, err)
-						os.Exit(1)
+						return cli.NewExitError(err.Error(), 1)
 					}
 
 					info, ok := instList[name]
@@ -283,24 +305,23 @@ func TlsCommand() cli.Command {
 	}
 }
 
-func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock) {
+func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock, err error) {
 	var hosts = make([]string, 0)
 	if hostname := c.String("host"); hostname == "" {
-		fmt.Fprintln(os.Stderr, "You must provide hostname to create Certificate for")
-		os.Exit(1)
+		err = cli.NewExitError("You must provide hostname to create Certificate for", 1)
+		return
 	} else {
 		hosts = append(hosts, hostname)
 	}
 	hosts = append(hosts, c.StringSlice("altname")...)
 	org, certpath, err := mach.ParseCertArgs(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		err = cli.NewExitError(err.Error(), 1)
+	} else {
+		CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
+		if err != nil {
+			err = cli.NewExitError(err.Error(), 1)
+		}
 	}
 	return
 }

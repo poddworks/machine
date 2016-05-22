@@ -5,9 +5,12 @@ import (
 
 	"github.com/codegangsta/cli"
 
-	"fmt"
 	"net"
-	"os"
+)
+
+var (
+	// Instance Roster
+	instList = make(mach.RegisteredInstances)
 )
 
 func NewCommand() cli.Command {
@@ -32,7 +35,16 @@ func newCreateCommand() cli.Command {
 			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 		},
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
 		Action: func(c *cli.Context) error {
+			defer instList.Dump()
+
 			var (
 				org, certpath, _ = mach.ParseCertArgs(c)
 
@@ -44,34 +56,24 @@ func newCreateCommand() cli.Command {
 				name    = c.Args().First()
 				addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
 
-				instList = make(mach.RegisteredInstances)
-
 				inst = mach.NewDockerHost(org, certpath, user, cert)
 			)
 
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
-
 			if name == "" {
-				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
-				os.Exit(1)
+				return cli.NewExitError("Required argument `name` missing", 1)
 			} else if _, ok := instList[name]; ok {
-				fmt.Fprintln(os.Stderr, "Machine exist")
-				os.Exit(1)
+				return cli.NewExitError("Machine exist", 1)
 			}
 
 			if user == "" || cert == "" {
-				fmt.Fprintln(os.Stderr, "Missing required remote auth info")
-				os.Exit(1)
+				return cli.NewExitError("Missing required remote auth info", 1)
 			}
 
 			if err := inst.InstallDockerEngine(hostname); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
+				return cli.NewExitError(err.Error(), 1)
 			}
 			if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
+				return cli.NewExitError(err.Error(), 1)
 			}
 			instList[name] = &mach.Instance{
 				Id:         name,

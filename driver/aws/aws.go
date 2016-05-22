@@ -24,6 +24,9 @@ var (
 	// AWS EC2 client object for establishing command
 	svc *ec2.EC2
 
+	// AWS Profile
+	profile = make(AWSProfile)
+
 	// Instance Roster
 	instList = make(mach.RegisteredInstances)
 )
@@ -67,9 +70,14 @@ func newStartCommand() cli.Command {
 	return cli.Command{
 		Name:  "start",
 		Usage: "Start instance",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			return nil
+		},
 		Action: func(c *cli.Context) error {
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
+			defer instList.Dump()
 
 			for _, name := range c.Args() {
 				info, ok := instList[name]
@@ -84,13 +92,11 @@ func newStartCommand() cli.Command {
 					},
 				})
 				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
+					return cli.NewExitError(err.Error(), 1)
 				}
 
 				if state := <-ec2_WaitForReady(&info.Id); state.err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] failed to launch")
 				} else {
 					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					info.DockerHost = addr
@@ -107,9 +113,14 @@ func newStopCommand() cli.Command {
 	return cli.Command{
 		Name:  "stop",
 		Usage: "Stop instance",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			return nil
+		},
 		Action: func(c *cli.Context) error {
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
+			defer instList.Dump()
 
 			for _, name := range c.Args() {
 				info, ok := instList[name]
@@ -124,8 +135,7 @@ func newStopCommand() cli.Command {
 					},
 				})
 				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
+					return cli.NewExitError(err.Error(), 1)
 				}
 
 				info.DockerHost = nil
@@ -141,9 +151,14 @@ func newRmCommand() cli.Command {
 	return cli.Command{
 		Name:  "rm",
 		Usage: "Remove and Terminate instance",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			return nil
+		},
 		Action: func(c *cli.Context) error {
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
+			defer instList.Dump()
 
 			for _, name := range c.Args() {
 				info, ok := instList[name]
@@ -158,8 +173,7 @@ func newRmCommand() cli.Command {
 					},
 				})
 				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
+					return cli.NewExitError(err.Error(), 1)
 				}
 
 				delete(instList, name)
@@ -200,7 +214,15 @@ func newCreateCommand() cli.Command {
 			cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
 			cli.IntSliceFlag{Name: "volume-size", Usage: "EC2 EBS volume size"},
 		},
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			return nil
+		},
 		Action: func(c *cli.Context) error {
+			defer instList.Dump()
+
 			var (
 				profile = make(AWSProfile)
 
@@ -209,41 +231,43 @@ func newCreateCommand() cli.Command {
 
 				name = c.Args().First()
 
-				useDocker = c.Bool("use-docker")
+				num2Launch = c.Int("count")
+				useDocker  = c.Bool("use-docker")
+
+				org, certpath, _ = mach.ParseCertArgs(c)
 			)
 
 			if user == "" || cert == "" {
-				fmt.Fprintln(os.Stderr, "Missing required remote auth info")
-				os.Exit(1)
+				return cli.NewExitError("Missing required remote auth info", 1)
 			}
 
 			// Load from AWS configuration from last sync
-			profile.Load()
-
-			// Load from Instance Roster to register and defer write back
-			defer instList.Load().Dump()
+			if err := profile.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
 
 			if name == "" {
-				fmt.Fprintln(os.Stderr, "Required argument `name` missing")
-				os.Exit(1)
+				return cli.NewExitError("Required argument `name` missing", 1)
 			} else if _, ok := instList[name]; ok {
-				fmt.Fprintln(os.Stderr, "Machine exist")
-				os.Exit(1)
+				return cli.NewExitError("Machine exist", 1)
 			}
 
 			region, ok := profile[c.GlobalString("region")]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "Please run sync in the region of choice")
-				os.Exit(1)
+				return cli.NewExitError("Please run sync in the region of choice", 1)
 			}
 			p, ok := region[c.String("profile")]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "Unable to find matching VPC profile")
-				os.Exit(1)
+				return cli.NewExitError("Unable to find matching VPC profile", 1)
+			}
+
+			instances, err := newEC2Inst(c, p, num2Launch)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
 			}
 
 			// Invoke EC2 launch procedure
-			for state := range newEC2Inst(c, p, user, cert, name, useDocker) {
+			for state := range deployEC2Inst(user, cert, name, org, certpath, num2Launch, useDocker, instances) {
 				if addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376"); state.err == nil {
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 					if useDocker {
@@ -286,8 +310,7 @@ func newImageCommand() cli.Command {
 				Description: aws.String(desc),
 			})
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
+				return cli.NewExitError(err.Error(), 1)
 			} else {
 				fmt.Println(*resp.ImageId)
 			}
