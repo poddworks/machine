@@ -27,7 +27,7 @@ func syncFromAWS() cli.Command {
 				return cli.NewExitError(err.Error(), 1)
 			}
 			if err := instList.Load(); err != nil {
-				return err
+				return cli.NewExitError(err.Error(), 1)
 			}
 			return nil
 		},

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"os/user"
 	path "path/filepath"
@@ -57,6 +58,36 @@ type RegionProfile map[string]*Profile
 
 type AWSProfile map[string]RegionProfile
 
+func (a AWSProfile) Load() error {
+	conf, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer origin.Close()
+	if err = json.NewDecoder(origin).Decode(&a); err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
+}
+
+func (a AWSProfile) Dump() error {
+	conf, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer origin.Close()
+	return json.NewEncoder(origin).Encode(a)
+}
+
 func getConfigPath() (string, error) {
 	usr, err := user.Current()
 	if err != nil {
@@ -73,30 +104,4 @@ func getConfigPath() (string, error) {
 	} else {
 		return conf, nil
 	}
-}
-
-func (a AWSProfile) Load() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-	defer origin.Close()
-	return json.NewDecoder(origin).Decode(&a)
-}
-
-func (a AWSProfile) Dump() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer origin.Close()
-	return json.NewEncoder(origin).Encode(a)
 }

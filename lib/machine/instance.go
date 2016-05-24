@@ -2,6 +2,7 @@ package machine
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"os/user"
@@ -32,7 +33,11 @@ func (r RegisteredInstances) Load() error {
 		return err
 	}
 	defer origin.Close()
-	return json.NewDecoder(origin).Decode(&r)
+	if err = json.NewDecoder(origin).Decode(&r); err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (r RegisteredInstances) Dump() error {
