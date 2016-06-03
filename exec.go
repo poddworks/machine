@@ -201,6 +201,8 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 				return
 			}
 		}
+		// Wipe the slate for this provision block
+		p.Clean(cmdr)
 	}
 
 	collect <- nil // mark end of playbook

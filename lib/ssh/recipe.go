@@ -62,6 +62,11 @@ type Provision struct {
 	Action  []Action  `yaml:"action"`
 }
 
+func (p Provision) Clean(cmdr Commander) {
+	defer cmdr.Sudo().StepDown()
+	cmdr.RunQuiet(fmt.Sprintf("rm -rf %s", TMP_REMOTE_DIR))
+}
+
 type Action struct {
 	Cmd    string `yaml:"cmd,omitempty"`
 	Script string `yaml:"script,omitempty"`
