@@ -155,10 +155,14 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 		if dryrun {
 			continue // skip ahead
 		}
-		if err := a.Send(cmdr); err != nil {
-			fmt.Fprintln(os.Stderr, host, "-", err)
-			collect <- err
-			return
+		if a.Skip {
+			continue // skip ahead
+		} else {
+			if err := a.Send(cmdr); err != nil {
+				fmt.Fprintln(os.Stderr, host, "-", err)
+				collect <- err
+				return
+			}
 		}
 	}
 
@@ -169,10 +173,14 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 			if dryrun {
 				continue // skip ahead
 			}
-			if err := a.Send(cmdr); err != nil {
-				fmt.Fprintln(os.Stderr, host, "-", err)
-				collect <- err
-				return
+			if a.Skip {
+				continue // skip ahead
+			} else {
+				if err := a.Send(cmdr); err != nil {
+					fmt.Fprintln(os.Stderr, host, "-", err)
+					collect <- err
+					return
+				}
 			}
 		}
 		for _, a := range p.Action {
@@ -180,25 +188,29 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 			if dryrun {
 				continue // skip ahead
 			}
-			respStream, err := a.Act(cmdr)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err)
-				collect <- err
-				return
-			}
-			for output := range respStream {
-				text, err = output.Data()
+			if a.Skip {
+				continue // skip ahead
+			} else {
+				respStream, err := a.Act(cmdr)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err)
-					// steam will end because error state delivers last
-				} else {
-					fmt.Println(host, "-", p.Name, "-", text)
+					collect <- err
+					return
 				}
-			}
-			// abort if action failed and its not okay to fail
-			if err != nil && !p.Ok2fail {
-				collect <- err
-				return
+				for output := range respStream {
+					text, err = output.Data()
+					if err != nil {
+						fmt.Fprintln(os.Stderr, host, "-", p.Name, "-", err)
+						// steam will end because error state delivers last
+					} else {
+						fmt.Println(host, "-", p.Name, "-", text)
+					}
+				}
+				// abort if action failed and its not okay to fail
+				if err != nil && !p.Ok2fail {
+					collect <- err
+					return
+				}
 			}
 		}
 		// Wipe the slate for this provision block

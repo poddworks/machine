@@ -20,7 +20,8 @@ type Archive struct {
 	Src     string `yaml:"src"`
 	Dst     string `yaml:"dst"`
 	Dir     string `yaml:"dir"`
-	Sudo    bool   `yaml:"sudo:`
+	Sudo    bool   `yaml:"sudo"`
+	Skip    bool   `yaml:"skip"`
 }
 
 func (a Archive) Source(cmdr Commander) string {
@@ -72,6 +73,7 @@ type Action struct {
 	Script string `yaml:"script,omitempty"`
 	Shell  bool   `yaml:"shell"`
 	Sudo   bool   `yaml:"sudo"`
+	Skip   bool   `yaml:"skip"`
 }
 
 func (a Action) Command() (cmd string) {
