@@ -132,7 +132,7 @@ func ec2_tagInstanceParam(tags []string) (*ec2.CreateTagsInput, error) {
 
 func ec2_EbsRoot(size int) (mapping *ec2.BlockDeviceMapping) {
 	return &ec2.BlockDeviceMapping{
-		DeviceName: aws.String("xvda"),
+		DeviceName: aws.String("/dev/sda1"),
 		Ebs: &ec2.EbsBlockDevice{
 			DeleteOnTermination: aws.Bool(true),
 			VolumeSize:          aws.Int64(int64(size)),
