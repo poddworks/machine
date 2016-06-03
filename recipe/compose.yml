@@ -1,0 +1,55 @@
+---
+provision:
+- name: Install utility package
+  action:
+    - script: 00-install-pkg
+      sudo: true
+
+- name: Install Docker Engine
+  action:
+    - script: 01-install-docker-engine
+      sudo: true
+
+- name: Configure system setting
+  action:
+    - script: 02-config-system
+      sudo: true
+    - cmd: 'pvcreate /dev/xvdb && vgcreate data /dev/xvdb && lvcreate -l 100%FREE -n docker data'
+      shell: true
+      sudo: true
+    - cmd: 'mkfs.ext4 /dev/data/docker'
+      sudo: true
+    - cmd: 'echo "/dev/mapper/data-docker /data ext4 rw 0 0" >>/etc/fstab'
+      shell: true
+      sudo: true
+
+- name: Configure Docker Engine
+  archive:
+    - src: docker.daemon.json
+      dst: /etc/docker/daemon.json
+      sudo: true
+  action:
+    - cmd: 'service docker stop'
+      sudo: true
+    - cmd: 'rm -f /etc/docker/key.json'
+      sudo: true
+    - cmd: 'rm -rf /var/lib/docker'
+      sudo: true
+
+---
+provision:
+- name: Configure swap
+  action:
+    - cmd: 'fallocate -l 8G /swapfile && chmod 600 /swapfile && mkswap /swapfile'
+      shell: true
+      sudo: true
+    - cmd: 'echo "/swapfile none swap sw 0 0" >>/etc/fstab'
+      shell: true
+      sudo: true
+
+---
+provision:
+- name: Clean up and Shutdown
+  action:
+    - cmd: shutdown -h now
+      sudo: true
