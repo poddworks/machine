@@ -65,6 +65,7 @@ type Provision struct {
 type Action struct {
 	Cmd    string `yaml:"cmd,omitempty"`
 	Script string `yaml:"script,omitempty"`
+	Shell  bool   `yaml:"shell"`
 	Sudo   bool   `yaml:"sudo"`
 }
 
@@ -87,7 +88,11 @@ func (a Action) Act(cmdr Commander) (output <-chan Response, err error) {
 		if a.Sudo {
 			defer cmdr.Sudo().StepDown()
 		}
-		output, err = cmdr.Stream(a.Cmd)
+		if a.Shell {
+			output, err = cmdr.Stream(fmt.Sprintf("bash -c '%s'", a.Cmd))
+		} else {
+			output, err = cmdr.Stream(a.Cmd)
+		}
 		break
 	case a.Script != "":
 		dst := path.Join(TMP_REMOTE_DIR, path.Base(a.Script))
