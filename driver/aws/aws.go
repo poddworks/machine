@@ -268,7 +268,8 @@ func newCreateCommand() cli.Command {
 
 			// Invoke EC2 launch procedure
 			for state := range deployEC2Inst(user, cert, name, org, certpath, num2Launch, useDocker, instances) {
-				if addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376"); state.err == nil {
+				if state.err == nil {
+					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
 					if useDocker {
 						instList[state.name] = &mach.Instance{

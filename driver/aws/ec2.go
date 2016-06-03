@@ -286,30 +286,34 @@ func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDo
 		for idx, inst := range instances {
 			go func(index int, ch <-chan ec2state) {
 				var state = <-ch
-				if num2Launch > 1 {
-					state.name = fmt.Sprintf("%s-%03d", name, index)
+				if state.Instance == nil {
+					state.err = fmt.Errorf("Unexpected Instance launch failure")
 				} else {
-					state.name = name
-				}
-				tagparam := &ec2.CreateTagsInput{
-					Tags: []*ec2.Tag{
-						{
-							Key:   aws.String("Name"),
-							Value: aws.String(state.name),
-						},
-					},
-					Resources: []*string{
-						state.InstanceId,
-					},
-				}
-				_, state.err = svc.CreateTags(tagparam)
-				if useDocker {
-					host := mach.NewDockerHost(org, certpath, user, cert)
-					if state.err == nil {
-						state.err = host.InstallDockerEngine(*state.PublicIpAddress)
+					if num2Launch > 1 {
+						state.name = fmt.Sprintf("%s-%03d", name, index)
+					} else {
+						state.name = name
 					}
-					if state.err == nil {
-						state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
+					tagparam := &ec2.CreateTagsInput{
+						Tags: []*ec2.Tag{
+							{
+								Key:   aws.String("Name"),
+								Value: aws.String(state.name),
+							},
+						},
+						Resources: []*string{
+							state.InstanceId,
+						},
+					}
+					_, state.err = svc.CreateTags(tagparam)
+					if useDocker {
+						host := mach.NewDockerHost(org, certpath, user, cert)
+						if state.err == nil {
+							state.err = host.InstallDockerEngine(*state.PublicIpAddress)
+						}
+						if state.err == nil {
+							state.err = host.InstallDockerEngineCertificate(*state.PublicIpAddress, *state.PrivateIpAddress)
+						}
 					}
 				}
 				out <- state
