@@ -6,7 +6,7 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func ami_getInfo() (ami []*ec2.Image, err error) {
+func ami_getDefaultImage() (ami []*ec2.Image, err error) {
 	amiparam := &ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -31,9 +31,40 @@ func ami_getInfo() (ami []*ec2.Image, err error) {
 	return
 }
 
+func ami_getInfo(account_id string) (ami []*ec2.Image, err error) {
+	amiparam := &ec2.DescribeImagesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("owner-id"),
+				Values: []*string{
+					aws.String(account_id),
+				},
+			},
+		},
+	}
+	if resp, err := svc.DescribeImages(amiparam); err != nil {
+		return nil, err
+	} else {
+		ami = resp.Images
+	}
+	return
+}
+
 func amiInit(c *cli.Context, profile *Profile) error {
 	profile.Ami = make([]AMIProfile, 0)
-	if AMIs, err := ami_getInfo(); err != nil {
+	if DefaultAMIs, err := ami_getDefaultImage(); err != nil {
+		return err
+	} else {
+		for _, ami := range DefaultAMIs {
+			profile.Ami = append(profile.Ami, AMIProfile{
+				Arch: ami.Architecture,
+				Desc: ami.Description,
+				Id:   ami.ImageId,
+				Name: ami.Name,
+			})
+		}
+	}
+	if AMIs, err := ami_getInfo(profile.AccntId); err != nil {
 		return err
 	} else {
 		for _, ami := range AMIs {

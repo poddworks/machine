@@ -49,6 +49,7 @@ type KeyPair struct {
 type Profile struct {
 	Name    string       `json:"name"`
 	Region  string       `json:"region"`
+	AccntId string       `json:"account_id"`
 	VPC     VPCProfile   `json:"vpc"`
 	KeyPair []KeyPair    `json:"key_pair"`
 	Ami     []AMIProfile `json:"ami"`

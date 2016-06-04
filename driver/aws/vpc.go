@@ -72,10 +72,10 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 	return
 }
 
-func vpcInit(c *cli.Context, profile *VPCProfile) error {
+func vpcInit(c *cli.Context, profile *VPCProfile) (account_id string, err error) {
 	vpc, subs, grps, err := vpc_getInfo(c.String("vpc-id"))
 	if err != nil {
-		return err
+		return "", err
 	}
 	profile.Id = vpc.VpcId
 	profile.Cidr = vpc.CidrBlock
@@ -94,6 +94,7 @@ func vpcInit(c *cli.Context, profile *VPCProfile) error {
 			Desc: group.Description,
 			Name: group.GroupName,
 		})
+		account_id = *group.OwnerId
 	}
-	return nil
+	return
 }

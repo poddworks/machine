@@ -36,8 +36,10 @@ func syncFromAWS() cli.Command {
 			defer instList.Dump()
 
 			p := &Profile{Name: c.String("name"), Region: c.GlobalString("region")}
-			if err := vpcInit(c, &p.VPC); err != nil {
+			if account_id, err := vpcInit(c, &p.VPC); err != nil {
 				return cli.NewExitError(err.Error(), 1)
+			} else {
+				p.AccntId = account_id
 			}
 			if err := amiInit(c, p); err != nil {
 				return cli.NewExitError(err.Error(), 1)
