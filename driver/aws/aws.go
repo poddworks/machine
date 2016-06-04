@@ -237,10 +237,6 @@ func newCreateCommand() cli.Command {
 				org, certpath, _ = mach.ParseCertArgs(c)
 			)
 
-			if user == "" || cert == "" {
-				return cli.NewExitError("Missing required remote auth info", 1)
-			}
-
 			// Load from AWS configuration from last sync
 			if err := profile.Load(); err != nil {
 				return cli.NewExitError(err.Error(), 1)
