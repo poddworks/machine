@@ -200,7 +200,7 @@ func newCreateCommand() cli.Command {
 		Name:  "create",
 		Usage: "Create a new EC2 instance",
 		Flags: []cli.Flag{
-			cli.BoolTFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
+			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
 			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
 			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
 			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
