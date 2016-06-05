@@ -164,9 +164,6 @@ func ExecCommand() cli.Command {
 		Name:  "exec",
 		Usage: "Invoke command on remote host via SSH",
 		Flags: []cli.Flag{
-			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-			cli.StringFlag{Name: "port", EnvVar: "MACHINE_PORT", Value: DEFAULT_MACHINE_PORT, Usage: "Private key to use in Authentication"},
 			cli.BoolFlag{Name: "dryrun", Usage: "Enable Dry Run"},
 			cli.StringSliceFlag{Name: "host", Usage: "Remote host to run command in"},
 		},
@@ -197,10 +194,6 @@ func TlsCommand() cli.Command {
 	return cli.Command{
 		Name:  "tls",
 		Usage: "Utility for generating certificate for TLS",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
-			cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
-		},
 		Subcommands: []cli.Command{
 			{
 				Name:  "bootstrap",
@@ -245,8 +238,6 @@ func TlsCommand() cli.Command {
 				Usage: "Generate and install certificate on target",
 				Flags: []cli.Flag{
 					cli.BoolFlag{Name: "is-new", Usage: "Installing new Certificate on existing instance"},
-					cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-					cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
 					cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine Certificate"},
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 					cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
@@ -265,8 +256,9 @@ func TlsCommand() cli.Command {
 					var (
 						org, certpath, _ = mach.ParseCertArgs(c)
 
-						user     = c.String("user")
-						cert     = c.String("cert")
+						user = c.GlobalString("user")
+						cert = c.GlobalString("cert")
+
 						hostname = c.String("host")
 						altnames = c.StringSlice("altname")
 

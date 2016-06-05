@@ -13,15 +13,15 @@ import (
 )
 
 func parseArgs(c *cli.Context) (user, key, port string, hosts []string) {
-	return c.String("user"), c.String("cert"), c.String("port"), c.StringSlice("host")
+	return c.GlobalString("user"), c.GlobalString("cert"), c.GlobalString("port"), c.GlobalStringSlice("host")
 }
 
 func runCmd(c *cli.Context) error {
 	var (
 		cmd                    = strings.Join(c.Args(), " ")
 		collect                = make(chan error)
-		dryrun                 = c.Parent().Bool("dryrun")
-		user, key, port, hosts = parseArgs(c.Parent())
+		dryrun                 = c.GlobalBool("dryrun")
+		user, key, port, hosts = parseArgs(c)
 
 		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
 		playbook = ssh.Recipe{}
@@ -57,8 +57,8 @@ func runScript(c *cli.Context) error {
 		scripts                = c.Args()
 		collect                = make(chan error)
 		sudo                   = c.Bool("sudo")
-		dryrun                 = c.Parent().Bool("dryrun")
-		user, key, port, hosts = parseArgs(c.Parent())
+		dryrun                 = c.GlobalBool("dryrun")
+		user, key, port, hosts = parseArgs(c)
 
 		sshCfg   = ssh.Config{User: user, Key: key, Port: port}
 		playbook = ssh.Recipe{}
@@ -94,8 +94,8 @@ func runScript(c *cli.Context) error {
 func runPlaybook(c *cli.Context) error {
 	var (
 		collect                = make(chan error)
-		dryrun                 = c.Parent().Bool("dryrun")
-		user, key, port, hosts = parseArgs(c.Parent())
+		dryrun                 = c.GlobalBool("dryrun")
+		user, key, port, hosts = parseArgs(c)
 
 		sshCfg = ssh.Config{User: user, Key: key, Port: port}
 	)

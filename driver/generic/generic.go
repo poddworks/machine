@@ -17,10 +17,6 @@ func NewCommand() cli.Command {
 	return cli.Command{
 		Name:  "generic",
 		Usage: "Setup Machine to use Docker Engine",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
-			cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-		},
 		Subcommands: []cli.Command{
 			newCreateCommand(),
 		},
