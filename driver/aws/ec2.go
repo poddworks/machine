@@ -68,6 +68,7 @@ func ec2Init() error {
 					} else {
 						info.Driver = "aws"
 						info.State = *inst.State.Name
+						info.Id = *inst.InstanceId
 						func() {
 							var addr *net.TCPAddr
 							if inst.PublicIpAddress != nil {
