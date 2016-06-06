@@ -34,6 +34,7 @@ func main() {
 		IPCommand(),
 		EnvCommand(),
 		ExecCommand(),
+		SSHCommand(),
 		TlsCommand(),
 		aws.NewCommand(),
 		generic.NewCommand(),

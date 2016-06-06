@@ -30,6 +30,9 @@ type Commander interface {
 	// Run command and stay quiet
 	RunQuiet(cmd string) error
 
+	// Obtain a login shell
+	Shell() error
+
 	// Run command and stream combined output
 	Stream(cmd string) (<-chan Response, error)
 

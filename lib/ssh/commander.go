@@ -3,6 +3,7 @@ package ssh
 import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"bufio"
 	"bytes"
@@ -181,6 +182,54 @@ func (sshCmd *SSHCommander) RunQuiet(cmd string) (err error) {
 	}
 	err = session.Run(cmd)
 	return
+}
+
+func (sshCmd *SSHCommander) Shell() (err error) {
+	var (
+		termWidth, termHeight int
+	)
+
+	session, err := sshCmd.connect()
+	if err != nil {
+		return
+	}
+	defer session.Close()
+
+	// Attach host input, output
+	session.Stdin = os.Stdin
+	session.Stdout = os.Stdout
+	session.Stderr = os.Stderr
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO: 1,
+	}
+	fd := os.Stdin.Fd()
+
+	if terminal.IsTerminal(int(fd)) {
+		oldState, err := terminal.MakeRaw(int(fd))
+		if err != nil {
+			return err
+		}
+		defer terminal.Restore(int(fd), oldState)
+
+		termWidth, termHeight, err = terminal.GetSize(int(fd))
+		if err != nil {
+			termWidth = 80
+			termHeight = 24
+		}
+	}
+
+	err = session.RequestPty("xterm", termHeight, termWidth, modes)
+	if err != nil {
+		return
+	}
+
+	err = session.Shell()
+	if err != nil {
+		return
+	}
+
+	return session.Wait()
 }
 
 func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {

@@ -110,6 +110,13 @@ func (h *Host) waitSSH() error {
 	}
 }
 
+func (h *Host) Shell(host string) error {
+	ssh_config := ssh.Config{User: h.User, Server: host, Key: h.Cert, Port: "22"}
+	h.cmdr = ssh.New(ssh_config)
+	defer h.cmdr.Close()
+	return h.cmdr.Shell()
+}
+
 func (h *Host) InstallDockerEngine(host string) error {
 	if !h.IsDocker { // Not processing because not a Docker Engine
 		fmt.Println(host, "- skipping Docker Engine Install")

@@ -190,6 +190,45 @@ func ExecCommand() cli.Command {
 	}
 }
 
+func SSHCommand() cli.Command {
+	return cli.Command{
+		Name:  "ssh",
+		Usage: "Login to remote machine or configure ssh",
+		Before: func(c *cli.Context) error {
+			if err := instList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
+		Subcommands: []cli.Command{},
+		Action: func(c *cli.Context) error {
+			var (
+				org, certpath, _ = mach.ParseCertArgs(c)
+
+				user = c.GlobalString("user")
+				cert = c.GlobalString("cert")
+
+				name = c.Args().First()
+
+				inst = mach.NewHost(org, certpath, user, cert)
+			)
+
+			info, ok := instList[name]
+			if !ok {
+				return cli.NewExitError("instance name not found", 1)
+			}
+
+			host, _, _ := net.SplitHostPort(info.DockerHost.String())
+			if err := inst.Shell(host); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			} else {
+				return nil
+			}
+		},
+	}
+}
+
 func TlsCommand() cli.Command {
 	return cli.Command{
 		Name:  "tls",
