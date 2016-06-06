@@ -27,13 +27,14 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
+		GenerateRecipeCommand(),
+		GenerateSwarmCommand(),
 		ListInstanceCommand(),
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
 		InstanceCommand("rm", "Remove And Terminate"),
 		IPCommand(),
 		EnvCommand(),
-		GenerateRecipeCommand(),
 		ExecCommand(),
 		SSHCommand(),
 		TlsCommand(),

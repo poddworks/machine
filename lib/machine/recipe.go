@@ -1,5 +1,18 @@
 package machine
 
+const SWARM_MASTER = `version: "2"
+
+services:
+  swarm-master:
+    image: swarm:1.2.3
+    command: "manage -H tcp://0.0.0.0:2376 --tlsverify --tlscacert /conf/ca.pem --tlscert /conf/server-cert.pem -tlskey /conf/server-key.pem ${DISCOVERY_OPTS}"
+    network_mode: host
+    ports:
+      - "2376:2376"
+    volumes:
+      - ${PWD}:/conf:ro
+`
+
 const COMPOSE = `---
 provision:
 - name: Install utility package

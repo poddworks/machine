@@ -159,9 +159,29 @@ func EnvCommand() cli.Command {
 	}
 }
 
+func GenerateSwarmCommand() cli.Command {
+	return cli.Command{
+		Name:  "gen-swarm",
+		Usage: "Generate swarm master docker-compose style",
+		Action: func(c *cli.Context) error {
+			swarm, err := os.Create("docker-compose.yml")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer swarm.Close()
+			_, err = swarm.WriteString(mach.SWARM_MASTER)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			return nil
+		},
+	}
+}
+
 func GenerateRecipeCommand() cli.Command {
 	return cli.Command{
-		Name:  "generate-recipe",
+		Name:  "gen-recipe",
 		Usage: "Generate recipe for Docker Engine configuration to use by exec playbook",
 		Action: func(c *cli.Context) error {
 			compose, err := os.Create("compose.yml")
@@ -319,8 +339,11 @@ func TlsCommand() cli.Command {
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
 				Action: func(c *cli.Context) error {
-					_, Cert, Key, err := generateServerCertificate(c)
+					CA, Cert, Key, err := generateServerCertificate(c)
 					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(CA.Name, CA.Buf.Bytes(), 0600); err != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
 					if err = ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
