@@ -1,6 +1,0 @@
-{
-    "hosts": [
-        "unix:///var/run/docker.sock"
-    ],
-    "graph": "/data"
-}

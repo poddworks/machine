@@ -168,11 +168,14 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 
 	for _, p := range playbook.Provision {
 		fmt.Println(host, "-", "playbook section", "-", p.Name)
+		if dryrun {
+			continue // skip ahead
+		}
+		if p.Skip {
+			continue // skip ahead
+		}
 		for _, a := range p.Archive {
 			fmt.Println(host, "-", p.Name, "-", "sending", "-", a.Source(cmdr), "-", a.Dest())
-			if dryrun {
-				continue // skip ahead
-			}
 			if a.Skip {
 				continue // skip ahead
 			} else {
@@ -185,9 +188,6 @@ func exec(collect chan<- error, dryrun bool, cmdr ssh.Commander, playbook *ssh.R
 		}
 		for _, a := range p.Action {
 			fmt.Println(host, "-", p.Name, "-", a.Command())
-			if dryrun {
-				continue // skip ahead
-			}
 			if a.Skip {
 				continue // skip ahead
 			} else {

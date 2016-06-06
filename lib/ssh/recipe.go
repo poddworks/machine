@@ -61,6 +61,7 @@ type Provision struct {
 	Name    string    `yaml:"name"`
 	Ok2fail bool      `yaml:"ok2fail"`
 	Action  []Action  `yaml:"action"`
+	Skip    bool      `yaml:"skip"`
 }
 
 func (p Provision) Clean(cmdr Commander) {

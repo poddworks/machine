@@ -159,6 +159,66 @@ func EnvCommand() cli.Command {
 	}
 }
 
+func GenerateRecipeCommand() cli.Command {
+	return cli.Command{
+		Name:  "generate-recipe",
+		Usage: "Generate recipe for Docker Engine configuration to use by exec playbook",
+		Action: func(c *cli.Context) error {
+			compose, err := os.Create("compose.yml")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer compose.Close()
+			_, err = compose.WriteString(mach.COMPOSE)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			installPkg, err := os.Create("00-install-pkg")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer installPkg.Close()
+			_, err = installPkg.WriteString(mach.INSTALL_PKG)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			installDockerEngine, err := os.Create("01-install-docker-engine")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer installDockerEngine.Close()
+			_, err = installDockerEngine.WriteString(mach.INSTALL_DOCKER_ENGINE)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			configSystem, err := os.Create("02-config-system")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer configSystem.Close()
+			_, err = configSystem.WriteString(mach.CONFIGURE_SYSTEM)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			defaultDockerDaemon, err := os.Create("docker.daemon.json")
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			defer defaultDockerDaemon.Close()
+			_, err = defaultDockerDaemon.WriteString(mach.DOCKER_DAEMON_CONFIG)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			return nil
+		},
+	}
+}
+
 func ExecCommand() cli.Command {
 	return cli.Command{
 		Name:  "exec",

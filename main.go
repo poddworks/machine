@@ -33,6 +33,7 @@ func main() {
 		InstanceCommand("rm", "Remove And Terminate"),
 		IPCommand(),
 		EnvCommand(),
+		GenerateRecipeCommand(),
 		ExecCommand(),
 		SSHCommand(),
 		TlsCommand(),
