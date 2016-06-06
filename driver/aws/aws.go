@@ -265,13 +265,11 @@ func newCreateCommand() cli.Command {
 				if state.err == nil {
 					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
-					if useDocker {
-						instList[state.name] = &mach.Instance{
-							Id:         *state.InstanceId,
-							Driver:     "aws",
-							DockerHost: addr,
-							State:      "running",
-						}
+					instList[state.name] = &mach.Instance{
+						Id:         *state.InstanceId,
+						Driver:     "aws",
+						DockerHost: addr,
+						State:      "running",
 					}
 				} else {
 					fmt.Fprintln(os.Stderr, state.err)
