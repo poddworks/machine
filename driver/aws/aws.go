@@ -204,7 +204,7 @@ func newCreateCommand() cli.Command {
 			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
 			cli.StringFlag{Name: "iam-role", Usage: "EC2 IAM Role to apply"},
 			cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
-			cli.IntFlag{Name: "root-size", Value: 8, Usage: "EC2 root volume size"},
+			cli.IntFlag{Name: "root-size", Value: 16, Usage: "EC2 root volume size"},
 			cli.StringFlag{Name: "ssh-key", Usage: "EC2 instance SSH KeyPair"},
 			cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
 			cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
