@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/user"
 	"strings"
 )
 
@@ -135,8 +134,7 @@ func EnvCommand() cli.Command {
 		},
 		Action: func(c *cli.Context) error {
 			var (
-				usr, _   = user.Current()
-				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", usr.HomeDir, 1)
+				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", os.Getenv("HOME"), 1)
 
 				name = c.Args().First()
 			)

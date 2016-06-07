@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	usr "os/user"
 	"strings"
 	"time"
 )
@@ -38,10 +37,6 @@ type Host struct {
 }
 
 func ParseCertArgs(c *cli.Context) (org, certpath string, err error) {
-	user, err := usr.Current()
-	if err != nil {
-		return // Unable to determine user
-	}
 	org = c.String("organization")
 	if org == "" {
 		org = c.GlobalString("organization")
@@ -52,7 +47,7 @@ func ParseCertArgs(c *cli.Context) (org, certpath string, err error) {
 	}
 	certpath = c.String("certpath")
 	if certpath == "" {
-		certpath = strings.Replace(c.GlobalString("certpath"), "~", user.HomeDir, 1)
+		certpath = strings.Replace(c.GlobalString("certpath"), "~", os.Getenv("HOME"), 1)
 	}
 	if certpath == "" {
 		err = fmt.Errorf("Missing required argument certpath")

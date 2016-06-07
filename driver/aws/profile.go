@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"os/user"
 	path "path/filepath"
 	"strings"
 )
@@ -90,11 +89,7 @@ func (a AWSProfile) Dump() error {
 }
 
 func getConfigPath() (string, error) {
-	usr, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-	conf := strings.Replace(AWS_PROFILE_CONFIG_FILE, "~", usr.HomeDir, 1)
+	conf := strings.Replace(AWS_PROFILE_CONFIG_FILE, "~", os.Getenv("HOME"), 1)
 	confdir := path.Dir(conf)
 	if _, err := os.Stat(confdir); err != nil {
 		if os.IsNotExist(err) {

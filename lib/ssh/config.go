@@ -4,7 +4,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"io/ioutil"
-	"os/user"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -18,12 +18,8 @@ type Config struct {
 }
 
 func (cfg Config) GetKeyFile() (ssh.Signer, error) {
-	usr, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	keyfile := strings.Replace(cfg.Key, "~", usr.HomeDir, 1)
-	keyfile, err = filepath.Abs(keyfile)
+	keyfile := strings.Replace(cfg.Key, "~", os.Getenv("HOME"), 1)
+	keyfile, err := filepath.Abs(keyfile)
 	if err != nil {
 		return nil, err
 	}
