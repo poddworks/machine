@@ -38,6 +38,7 @@ func main() {
 		ExecCommand(),
 		SSHCommand(),
 		TlsCommand(),
+		DnstoolCommand(),
 		aws.NewCommand(),
 		generic.NewCommand(),
 	}
