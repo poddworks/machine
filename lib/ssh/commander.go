@@ -229,7 +229,8 @@ func (sshCmd *SSHCommander) Shell() (err error) {
 		return
 	}
 
-	return session.Wait()
+	session.Wait()
+	return nil
 }
 
 func (sshCmd *SSHCommander) Stream(cmd string) (<-chan Response, error) {
