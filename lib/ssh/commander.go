@@ -298,12 +298,12 @@ func New(cfg Config) Commander {
 	if cfg.Password != "" {
 		auths = append(auths, ssh.Password(cfg.Password))
 	}
+	if pubkey, err := cfg.GetKeyFile(); err == nil {
+		auths = append(auths, ssh.PublicKeys(pubkey))
+	}
 	if conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
 		sshAuthSock = conn
-	}
-	if pubkey, err := cfg.GetKeyFile(); err == nil {
-		auths = append(auths, ssh.PublicKeys(pubkey))
 	}
 	return &SSHCommander{
 		ssh_config:  &ssh.ClientConfig{User: cfg.User, Auth: auths},
