@@ -98,7 +98,7 @@ func (h *Host) waitSSH() error {
 	const attempts = 12
 	var idx = 0
 	for ; idx < attempts; idx++ {
-		if _, err := h.cmdr.Run("date"); err == nil {
+		if err := h.cmdr.RunQuiet("date"); err == nil {
 			break
 		}
 		time.Sleep(5 * time.Second)
