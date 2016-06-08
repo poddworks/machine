@@ -176,7 +176,9 @@ func GenerateCACertificate(org, certpath string) (err error) {
 	return
 }
 
-func GenerateClientCertificate(org, certpath string) (err error) {
+func GenerateClientCertificate(certpath, org string) (ca, cert, key *PemBlock, err error) {
+	certBuf, keyBuf := new(bytes.Buffer), new(bytes.Buffer)
+
 	tmpl, err := NewX509Certificate(org)
 	if err != nil {
 		return
@@ -186,28 +188,46 @@ func GenerateClientCertificate(org, certpath string) (err error) {
 
 	caCert, err := LoadCACert(certpath)
 	if err != nil {
-		return
+		return // Unable to load CA Certificate
 	}
 	x509Cert, err := x509.ParseCertificate(caCert.Certificate[0])
 	if err != nil {
-		return
+		return // Unable to Parse CA Certificate
 	}
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return
+		return // Unable to generate private key for certificate
+	}
+	err = pem.Encode(keyBuf, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+	if err != nil {
+		return // Unable to encode private key to PEM
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, x509Cert, &priv.PublicKey, caCert.PrivateKey)
 	if err != nil {
-		return
+		return // Unable to create Certificate
+	}
+	err = pem.Encode(certBuf, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	})
+	if err != nil {
+		return // Unable to encode Certificate to PEM
 	}
 
-	err = WriteCertificate(path.Join(certpath, "cert.pem"), derBytes)
+	CA, err := ioutil.ReadFile(path.Join(certpath, "ca.pem"))
 	if err != nil {
 		return
 	}
 
-	err = WriteKey(path.Join(certpath, "key.pem"), priv)
+	ca = NewPemBlock("ca.pem", CA)
+	cert = &PemBlock{"cert.pem", certBuf}
+	key = &PemBlock{"key.pem", keyBuf}
+
+	// retrieve encoded PEM bytes for Certificate and Key
 	return
 }

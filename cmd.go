@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -323,7 +324,42 @@ func TlsCommand() cli.Command {
 					if cert.GenerateCACertificate(org, certpath) != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
-					if cert.GenerateClientCertificate(org, certpath) != nil {
+					_, Cert, Key, err := cert.GenerateClientCertificate(certpath, org)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					Cert.Name = path.Join(certpath, Cert.Name)
+					if err = ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					Key.Name = path.Join(certpath, Key.Name)
+					if err = ioutil.WriteFile(Key.Name, Key.Buf.Bytes(), 0600); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					return nil
+				},
+			},
+			{
+				Name:  "gen-client",
+				Usage: "Generate server certificate with self-signed CA",
+				Action: func(c *cli.Context) error {
+					org, certpath, err := mach.ParseCertArgs(c)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					CA, Cert, Key, err := cert.GenerateClientCertificate(certpath, org)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					if err = ioutil.WriteFile(CA.Name, CA.Buf.Bytes(), 0600); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(Key.Name, Key.Buf.Bytes(), 0600); err != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
 					return nil
@@ -337,10 +373,24 @@ func TlsCommand() cli.Command {
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 				},
 				Action: func(c *cli.Context) error {
-					CA, Cert, Key, err := generateServerCertificate(c)
+					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
+
+					var hosts = make([]string, 0)
+					if hostname := c.String("host"); hostname == "" {
+						return cli.NewExitError("You must provide hostname to create Certificate for", 1)
+					} else {
+						hosts = append(hosts, hostname)
+					}
+					hosts = append(hosts, c.StringSlice("altname")...)
+
+					CA, Cert, Key, err := cert.GenerateServerCertificate(certpath, org, hosts)
+					if err != nil {
+						err = cli.NewExitError(err.Error(), 1)
+					}
+
 					if err = ioutil.WriteFile(CA.Name, CA.Buf.Bytes(), 0600); err != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
@@ -426,25 +476,4 @@ func TlsCommand() cli.Command {
 			},
 		},
 	}
-}
-
-func generateServerCertificate(c *cli.Context) (CA, Cert, Key *cert.PemBlock, err error) {
-	var hosts = make([]string, 0)
-	if hostname := c.String("host"); hostname == "" {
-		err = cli.NewExitError("You must provide hostname to create Certificate for", 1)
-		return
-	} else {
-		hosts = append(hosts, hostname)
-	}
-	hosts = append(hosts, c.StringSlice("altname")...)
-	org, certpath, err := mach.ParseCertArgs(c)
-	if err != nil {
-		err = cli.NewExitError(err.Error(), 1)
-	} else {
-		CA, Cert, Key, err = cert.GenerateServerCertificate(certpath, org, hosts)
-		if err != nil {
-			err = cli.NewExitError(err.Error(), 1)
-		}
-	}
-	return
 }
