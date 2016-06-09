@@ -284,17 +284,13 @@ func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDo
 	go func() {
 		defer close(out)
 		wg.Add(len(instances))
-		for idx, inst := range instances {
-			go func(index int, ch <-chan ec2state) {
+		for _, inst := range instances {
+			go func(ch <-chan ec2state) {
 				var state = <-ch
 				if state.Instance == nil {
 					state.err = fmt.Errorf("Unexpected Instance launch failure")
 				} else {
-					if num2Launch > 1 {
-						state.name = fmt.Sprintf("%s-%03d", name, index)
-					} else {
-						state.name = name
-					}
+					state.name = fmt.Sprintf("%s-%s", name, *state.InstanceId)
 					tagparam := &ec2.CreateTagsInput{
 						Tags: []*ec2.Tag{
 							{
@@ -319,7 +315,7 @@ func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDo
 				}
 				out <- state
 				wg.Done()
-			}(idx+1, ec2_WaitForReady(inst.InstanceId))
+			}(ec2_WaitForReady(inst.InstanceId))
 		}
 		wg.Wait()
 	}()
