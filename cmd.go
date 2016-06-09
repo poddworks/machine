@@ -4,8 +4,8 @@ import (
 	"github.com/jeffjen/machine/lib/cert"
 	mach "github.com/jeffjen/machine/lib/machine"
 
-	"github.com/urfave/cli"
 	"github.com/olekukonko/tablewriter"
+	"github.com/urfave/cli"
 
 	"fmt"
 	"io/ioutil"
@@ -272,7 +272,7 @@ func ExecCommand() cli.Command {
 func SSHCommand() cli.Command {
 	return cli.Command{
 		Name:  "ssh",
-		Usage: "Login to remote machine or configure ssh",
+		Usage: "Login to remote machine or configure SSH",
 		Before: func(c *cli.Context) error {
 			if err := instList.Load(); err != nil {
 				return cli.NewExitError(err.Error(), 1)
@@ -341,7 +341,7 @@ func TlsCommand() cli.Command {
 			},
 			{
 				Name:  "gen-client",
-				Usage: "Generate server certificate with self-signed CA",
+				Usage: "Generate client certificate with self-signed CA",
 				Action: func(c *cli.Context) error {
 					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
