@@ -3,7 +3,7 @@ package aws
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 func ami_getDefaultImage() (ami []*ec2.Image, err error) {

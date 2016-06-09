@@ -2,7 +2,7 @@ package aws
 
 import (
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 func keypair_getInfo() (keys []*ec2.KeyPairInfo, err error) {

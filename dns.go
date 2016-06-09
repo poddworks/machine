@@ -3,7 +3,7 @@ package main
 import (
 	mach "github.com/jeffjen/machine/lib/machine"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"encoding/json"
 	"fmt"

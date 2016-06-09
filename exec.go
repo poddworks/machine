@@ -4,7 +4,7 @@ import (
 	"github.com/jeffjen/machine/lib/ssh"
 	"github.com/jeffjen/yaml"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"fmt"
 	"io"

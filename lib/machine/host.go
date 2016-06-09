@@ -5,7 +5,7 @@ import (
 	"github.com/jeffjen/machine/lib/docker"
 	"github.com/jeffjen/machine/lib/ssh"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"bytes"
 	"fmt"

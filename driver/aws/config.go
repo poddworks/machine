@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"encoding/json"
 	"fmt"

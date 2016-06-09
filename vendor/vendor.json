@@ -129,12 +129,6 @@
 			"revisionTime": "2016-05-19T20:56:12Z"
 		},
 		{
-			"checksumSHA1": "OhA4ouuZC2HS4Jp6GcAGU+bXcbM=",
-			"path": "github.com/codegangsta/cli",
-			"revision": "bebbcf6d41ebde6db3940e63426b8ebcefca23c8",
-			"revisionTime": "2016-05-21T18:46:57Z"
-		},
-		{
 			"checksumSHA1": "FCeEm2BWZV/n4oTy+SGd/k0Ab5c=",
 			"origin": "github.com/aws/aws-sdk-go/vendor/github.com/go-ini/ini",
 			"path": "github.com/go-ini/ini",
@@ -165,6 +159,12 @@
 			"path": "github.com/olekukonko/tablewriter",
 			"revision": "279fecc91ba77130f753d073259d7f9e246acdda",
 			"revisionTime": "2016-05-16T22:19:56Z"
+		},
+		{
+			"checksumSHA1": "ixXMIecKKZNhBEk967FABRQkLtE=",
+			"path": "github.com/urfave/cli",
+			"revision": "7817f72540afa438b349cfa612e9d14618573adc",
+			"revisionTime": "2016-06-09T02:50:24Z"
 		},
 		{
 			"checksumSHA1": "h+pFYiRHBogczS8/F1NoN3Ata44=",

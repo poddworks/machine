@@ -4,7 +4,7 @@ import (
 	"github.com/jeffjen/machine/driver/aws"
 	"github.com/jeffjen/machine/driver/generic"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"os"
 )
