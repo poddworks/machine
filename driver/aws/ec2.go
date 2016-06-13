@@ -54,7 +54,7 @@ func ec2Init() error {
 		} else {
 			for _, r := range resp.Reservations {
 				for _, inst := range r.Instances {
-					var instanceName = getEc2InstanceName(inst)
+					var instanceName = fmt.Sprintf("%s-%s", getEc2InstanceName(inst), *inst.InstanceId)
 					info, ok := instList[instanceName]
 					if !ok {
 						info = &mach.Instance{Id: *inst.InstanceId}
