@@ -15,22 +15,10 @@ import (
 	"strings"
 )
 
-var (
-	// Instance roster
-	instList = make(mach.RegisteredInstances)
-)
-
 func ListInstanceCommand() cli.Command {
 	return cli.Command{
 		Name:  "ls",
 		Usage: "List cached Docker Engine instance info",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
 		Action: func(c *cli.Context) error {
 			var (
 				// Prepare table render
@@ -39,7 +27,7 @@ func ListInstanceCommand() cli.Command {
 
 			table.SetHeader([]string{"Name", "DockerHost", "Driver", "State"})
 			table.SetBorder(false)
-			for name, inst := range instList {
+			for name, inst := range mach.InstList {
 				var dockerhost = inst.DockerHost.String()
 				var oneRow = []string{
 					name,        // Name
@@ -61,16 +49,9 @@ func InstanceCommand(cmd, act string) cli.Command {
 		Name:            cmd,
 		Usage:           fmt.Sprintf("%s instance", act),
 		SkipFlagParsing: true,
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
 		Action: func(c *cli.Context) error {
 			for _, name := range c.Args() {
-				info, ok := instList[name]
+				info, ok := mach.InstList[name]
 				if !ok {
 					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
 					continue
@@ -96,17 +77,10 @@ func IPCommand() cli.Command {
 	return cli.Command{
 		Name:  "ip",
 		Usage: "Obtain IP address of the Docker Engine instance",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
 		Action: func(c *cli.Context) error {
 			var name = c.Args().First()
 
-			instMeta, ok := instList[name]
+			instMeta, ok := mach.InstList[name]
 			if !ok {
 				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
 			}
@@ -126,13 +100,6 @@ func EnvCommand() cli.Command {
 	return cli.Command{
 		Name:  "env",
 		Usage: "Apply Docker Engine environment for target",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
 		Action: func(c *cli.Context) error {
 			var (
 				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", os.Getenv("HOME"), 1)
@@ -143,7 +110,7 @@ func EnvCommand() cli.Command {
 				return cli.NewExitError("Required argument `name` missing", 1)
 			}
 
-			instMeta, ok := instList[name]
+			instMeta, ok := mach.InstList[name]
 			if !ok {
 				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
 			}
@@ -271,15 +238,8 @@ func ExecCommand() cli.Command {
 
 func SSHCommand() cli.Command {
 	return cli.Command{
-		Name:  "ssh",
-		Usage: "Login to remote machine or configure SSH",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
+		Name:        "ssh",
+		Usage:       "Login to remote machine or configure SSH",
 		Subcommands: []cli.Command{},
 		Action: func(c *cli.Context) error {
 			var (
@@ -293,7 +253,7 @@ func SSHCommand() cli.Command {
 				inst = mach.NewHost(org, certpath, user, cert)
 			)
 
-			info, ok := instList[name]
+			info, ok := mach.InstList[name]
 			if !ok {
 				return cli.NewExitError("instance name not found", 1)
 			}
@@ -414,17 +374,6 @@ func TlsCommand() cli.Command {
 					cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
 					cli.StringFlag{Name: "driver", Value: "generic", Usage: "Hint at what type of driver created this instance"},
 				},
-				Before: func(c *cli.Context) error {
-					if !c.Bool("skip-cache") {
-						if err := instList.Load(); err != nil {
-							return cli.NewExitError(err.Error(), 1)
-						} else {
-							return nil
-						}
-					} else {
-						return nil
-					}
-				},
 				Action: func(c *cli.Context) error {
 					var (
 						skipCache = c.Bool("skip-cache")
@@ -446,7 +395,7 @@ func TlsCommand() cli.Command {
 					)
 
 					if !skipCache {
-						defer instList.Dump()
+						defer mach.InstList.Dump()
 						if name == "" {
 							return cli.NewExitError("Required argument `name` missing", 1)
 						}
@@ -460,7 +409,7 @@ func TlsCommand() cli.Command {
 					}
 
 					if !skipCache {
-						info, ok := instList[name]
+						info, ok := mach.InstList[name]
 						if !ok {
 							info = &mach.Instance{Id: name, Driver: driver}
 						}
@@ -468,7 +417,7 @@ func TlsCommand() cli.Command {
 						info.State = "running"
 
 						// Update current records
-						instList[name] = info
+						mach.InstList[name] = info
 					}
 
 					return nil

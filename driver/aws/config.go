@@ -1,6 +1,8 @@
 package aws
 
 import (
+	mach "github.com/jeffjen/machine/lib/machine"
+
 	"github.com/urfave/cli"
 
 	"encoding/json"
@@ -22,18 +24,9 @@ func syncFromAWS() cli.Command {
 			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
 			cli.StringFlag{Name: "vpc-id", Value: "default", Usage: "AWS VPC identifier"},
 		},
-		Before: func(c *cli.Context) error {
-			if err := profile.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			return nil
-		},
 		Action: func(c *cli.Context) error {
 			defer profile.Dump()
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			p := &Profile{Name: c.String("name"), Region: c.GlobalString("region")}
 			if account_id, err := vpcInit(c, &p.VPC); err != nil {
@@ -78,8 +71,6 @@ func getFromAWSConfig() cli.Command {
 		},
 		Action: func(c *cli.Context) error {
 			var (
-				profile = make(AWSProfile)
-
 				name   = c.String("name")
 				region = c.GlobalString("region")
 
@@ -89,10 +80,6 @@ func getFromAWSConfig() cli.Command {
 			// Retrieve user provide query path
 			if qpath == "" {
 				return nil // nothing to do here, abort
-			}
-
-			if err := profile.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
 			}
 
 			if _, ok := profile[region]; !ok {

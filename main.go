@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/jeffjen/machine/driver/aws"
 	"github.com/jeffjen/machine/driver/generic"
+	mach "github.com/jeffjen/machine/lib/machine"
 
 	"github.com/urfave/cli"
 
@@ -49,7 +50,13 @@ func main() {
 		cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
 		cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
 	}
-	app.Before = nil
+	app.Before = func(c *cli.Context) error {
+		if err := mach.InstList.Load(); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		} else {
+			return nil
+		}
+	}
 	app.Action = nil
 	app.Run(os.Args)
 }

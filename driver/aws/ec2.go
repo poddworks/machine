@@ -55,13 +55,13 @@ func ec2Init() error {
 			for _, r := range resp.Reservations {
 				for _, inst := range r.Instances {
 					var instanceName = fmt.Sprintf("%s-%s", getEc2InstanceName(inst), *inst.InstanceId)
-					info, ok := instList[instanceName]
+					info, ok := mach.InstList[instanceName]
 					if !ok {
 						info = &mach.Instance{Id: *inst.InstanceId}
 					}
 					if *inst.State.Name == "terminated" {
 						if info.Id == *inst.InstanceId {
-							delete(instList, instanceName)
+							delete(mach.InstList, instanceName)
 						} else {
 							continue // ignore
 						}
@@ -76,7 +76,7 @@ func ec2Init() error {
 							}
 							info.DockerHost = addr
 						}()
-						instList[instanceName] = info
+						mach.InstList[instanceName] = info
 					}
 				}
 			}

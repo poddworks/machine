@@ -8,11 +8,6 @@ import (
 	"net"
 )
 
-var (
-	// Instance Roster
-	instList = make(mach.RegisteredInstances)
-)
-
 func NewCommand() cli.Command {
 	return cli.Command{
 		Name:  "generic",
@@ -31,15 +26,8 @@ func newCreateCommand() cli.Command {
 			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 		},
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			} else {
-				return nil
-			}
-		},
 		Action: func(c *cli.Context) error {
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			var (
 				org, certpath, _ = mach.ParseCertArgs(c)
@@ -57,7 +45,7 @@ func newCreateCommand() cli.Command {
 
 			if name == "" {
 				return cli.NewExitError("Required argument `name` missing", 1)
-			} else if _, ok := instList[name]; ok {
+			} else if _, ok := mach.InstList[name]; ok {
 				return cli.NewExitError("Machine exist", 1)
 			}
 
@@ -71,7 +59,7 @@ func newCreateCommand() cli.Command {
 			if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
-			instList[name] = &mach.Instance{
+			mach.InstList[name] = &mach.Instance{
 				Id:         name,
 				Driver:     "generic",
 				DockerHost: addr,

@@ -22,6 +22,11 @@ type Instance struct {
 
 type RegisteredInstances map[string]*Instance
 
+var (
+	// Instance roster
+	InstList = make(RegisteredInstances)
+)
+
 func (r RegisteredInstances) Load() error {
 	conf, err := getConfigPath()
 	if err != nil {

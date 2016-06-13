@@ -26,9 +26,6 @@ var (
 
 	// AWS Profile
 	profile = make(AWSProfile)
-
-	// Instance Roster
-	instList = make(mach.RegisteredInstances)
 )
 
 func NewCommand() cli.Command {
@@ -42,6 +39,9 @@ func NewCommand() cli.Command {
 			cli.StringFlag{Name: "token", EnvVar: "AWS_SESSION_TOKEN", Usage: "session token for temporary credentials"},
 		},
 		Before: func(c *cli.Context) error {
+			if err := profile.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
 			// bootstrap EC2 client with command line args
 			cfg := aws.NewConfig()
 			if region := c.String("region"); region != "" {
@@ -68,17 +68,11 @@ func newStartCommand() cli.Command {
 	return cli.Command{
 		Name:  "start",
 		Usage: "Start instance",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			return nil
-		},
 		Action: func(c *cli.Context) error {
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			for _, name := range c.Args() {
-				info, ok := instList[name]
+				info, ok := mach.InstList[name]
 				if !ok {
 					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
 					continue
@@ -111,17 +105,11 @@ func newStopCommand() cli.Command {
 	return cli.Command{
 		Name:  "stop",
 		Usage: "Stop instance",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			return nil
-		},
 		Action: func(c *cli.Context) error {
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			for _, name := range c.Args() {
-				info, ok := instList[name]
+				info, ok := mach.InstList[name]
 				if !ok {
 					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
 					continue
@@ -149,17 +137,11 @@ func newRmCommand() cli.Command {
 	return cli.Command{
 		Name:  "rm",
 		Usage: "Remove and Terminate instance",
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			return nil
-		},
 		Action: func(c *cli.Context) error {
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			for _, name := range c.Args() {
-				info, ok := instList[name]
+				info, ok := mach.InstList[name]
 				if !ok {
 					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
 					continue
@@ -174,7 +156,7 @@ func newRmCommand() cli.Command {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				delete(instList, name)
+				delete(mach.InstList, name)
 			}
 
 			return nil
@@ -212,18 +194,10 @@ func newCreateCommand() cli.Command {
 			cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
 			cli.IntSliceFlag{Name: "volume-size", Usage: "EC2 EBS volume size"},
 		},
-		Before: func(c *cli.Context) error {
-			if err := instList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			return nil
-		},
 		Action: func(c *cli.Context) error {
-			defer instList.Dump()
+			defer mach.InstList.Dump()
 
 			var (
-				profile = make(AWSProfile)
-
 				user = c.GlobalString("user")
 				cert = c.GlobalString("cert")
 
@@ -235,14 +209,9 @@ func newCreateCommand() cli.Command {
 				org, certpath, _ = mach.ParseCertArgs(c)
 			)
 
-			// Load from AWS configuration from last sync
-			if err := profile.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
 			if name == "" {
 				return cli.NewExitError("Required argument `name` missing", 1)
-			} else if _, ok := instList[name]; ok {
+			} else if _, ok := mach.InstList[name]; ok {
 				return cli.NewExitError("Machine exist", 1)
 			}
 
@@ -265,7 +234,7 @@ func newCreateCommand() cli.Command {
 				if state.err == nil {
 					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
-					instList[state.name] = &mach.Instance{
+					mach.InstList[state.name] = &mach.Instance{
 						Id:         *state.InstanceId,
 						Driver:     "aws",
 						DockerHost: addr,
