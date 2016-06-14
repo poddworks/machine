@@ -368,7 +368,6 @@ func TlsCommand() cli.Command {
 				Usage: "Generate and install certificate on target",
 				Flags: []cli.Flag{
 					cli.BoolFlag{Name: "is-new", Usage: "Installing new Certificate on existing instance"},
-					cli.BoolFlag{Name: "skip-cache", Usage: "Skip storing instance metadata"},
 					cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine Certificate"},
 					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
 					cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
@@ -376,8 +375,9 @@ func TlsCommand() cli.Command {
 				},
 				Action: func(c *cli.Context) error {
 					var (
-						skipCache = c.Bool("skip-cache")
-						isNew     = c.Bool("is-new")
+						skipCache = c.GlobalBool("skip-instance-cache")
+
+						isNew = c.Bool("is-new")
 
 						org, certpath, _ = mach.ParseCertArgs(c)
 

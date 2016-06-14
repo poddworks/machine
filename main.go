@@ -49,13 +49,16 @@ func main() {
 		cli.StringFlag{Name: "port", EnvVar: "MACHINE_PORT", Value: DEFAULT_MACHINE_PORT, Usage: "Private key to use in Authentication"},
 		cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
 		cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
+		cli.BoolFlag{Name: "skip-instance-cache", EnvVar: "MACHINE_SKIP_INSTNACE_CACHE", Usage: "Skip instance metadata"},
 	}
 	app.Before = func(c *cli.Context) error {
-		if err := mach.InstList.Load(); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		} else {
-			return nil
+		var skipCache = c.Bool("skip-instance-cache")
+		if !skipCache {
+			if err := mach.InstList.Load(); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
 		}
+		return nil
 	}
 	app.Action = nil
 	app.Run(os.Args)
