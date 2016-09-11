@@ -9,6 +9,7 @@ import (
 
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -88,21 +89,39 @@ func (h *Host) SetProvision(provision bool) {
 }
 
 func (h *Host) waitSSH() error {
-	host, _ := h.cmdr.Host()
-	// Wait for SSH daemon online
-	const attempts = 12
-	var idx = 0
-	for ; idx < attempts; idx++ {
-		if err := h.cmdr.RunQuiet("date"); err == nil {
-			break
+	var (
+		status   = make(chan error)
+		tick     = time.NewTicker(3 * time.Second)
+		attempts = 12
+
+		host, _ = h.cmdr.Host()
+	)
+	defer tick.Stop()
+	go func() {
+		defer close(status)
+		for ; attempts > 0; attempts-- {
+			if err := h.cmdr.RunQuiet("date"); err != nil {
+				time.Sleep(5 * time.Second)
+			} else {
+				break // success
+			}
 		}
-		time.Sleep(5 * time.Second)
+		if attempts == 0 {
+			status <- fmt.Errorf("%s - Unable to contact remote", host)
+		}
+	}()
+	var result error
+	for yay := true; yay; {
+		select {
+		case err := <-status:
+			result = err
+			yay = false
+		case <-tick.C:
+			fmt.Print(".")
+		}
 	}
-	if idx == attempts {
-		return fmt.Errorf("%s - Unable to contact remote", host)
-	} else {
-		return nil
-	}
+	fmt.Println(".")
+	return result
 }
 
 func (h *Host) Shell(host string) error {
@@ -110,6 +129,80 @@ func (h *Host) Shell(host string) error {
 	h.cmdr = ssh.New(ssh_config)
 	defer h.cmdr.Close()
 	return h.cmdr.Shell()
+}
+
+func (h *Host) exec(cmd string) error {
+	var (
+		status   = make(chan error)
+		tick     = time.NewTicker(3 * time.Second)
+		attempts = 3
+
+		host, _ = h.cmdr.Host()
+	)
+	defer tick.Stop()
+	go func() {
+		defer close(status)
+		for ; attempts > 0; attempts-- {
+			if err := h.cmdr.RunQuiet(fmt.Sprintf("bash -c '%s'", cmd)); err != nil {
+				fmt.Fprintf(os.Stderr, "%s - %s\n", host, err)
+				time.Sleep(1 * time.Second)
+			} else {
+				break // success!!
+			}
+		}
+		if attempts == 0 {
+			status <- fmt.Errorf("exec %s failed", cmd)
+		}
+	}()
+	var result error
+	for yay := true; yay; {
+		select {
+		case err := <-status:
+			result = err
+			yay = false
+		case <-tick.C:
+			fmt.Print(".")
+		}
+	}
+	fmt.Println(".")
+	return result
+}
+
+func (h *Host) sendfile(src io.Reader, size int64, dst string, mode os.FileMode) error {
+	var (
+		status   = make(chan error)
+		tick     = time.NewTicker(3 * time.Second)
+		attempts = 3
+
+		host, _ = h.cmdr.Host()
+	)
+	defer tick.Stop()
+	go func() {
+		defer close(status)
+		for ; attempts > 0; attempts-- {
+			if err := h.cmdr.Copy(src, size, dst, mode); err != nil {
+				fmt.Fprintf(os.Stderr, "%s - %s\n", host, err)
+				time.Sleep(1 * time.Second)
+			} else {
+				break // success!!
+			}
+		}
+		if attempts == 0 {
+			status <- fmt.Errorf("sendfile %s failed", dst)
+		}
+	}()
+	var result error
+	for yay := true; yay; {
+		select {
+		case err := <-status:
+			result = err
+			yay = false
+		case <-tick.C:
+			fmt.Print(".")
+		}
+	}
+	fmt.Println(".")
+	return result
 }
 
 func (h *Host) InstallDockerEngine(host string) error {
@@ -121,30 +214,18 @@ func (h *Host) InstallDockerEngine(host string) error {
 	h.cmdr = ssh.New(ssh_config)
 	defer h.cmdr.Close()
 
-	fmt.Println(host, "- install Docker Engine")
+	fmt.Print(host, " - install Docker Engine ")
 	if timeout := h.waitSSH(); timeout != nil {
 		return timeout
-	} else {
-		h.cmdr.Sudo()
-		for _, cmd := range install_docker_stemps {
-			fmt.Println(host, "-", cmd)
-			const attempts = 3
-			var idx = 0
-			for ; idx < attempts; idx++ {
-				if err := h.cmdr.RunQuiet(fmt.Sprintf("bash -c '%s'", cmd)); err != nil {
-					fmt.Fprintf(os.Stderr, "%s - %s\n", host, err)
-					time.Sleep(1 * time.Second)
-				} else {
-					break // sucess!!
-				}
-			}
-			if idx == attempts {
-				return fmt.Errorf("%s install Docker Engine failed", host)
-			}
-			// Next command in line!
-		}
-		return nil
 	}
+	h.cmdr.Sudo()
+	for _, cmd := range install_docker_stemps {
+		fmt.Print(host, " - ", cmd, " ")
+		if err := h.exec(cmd); err != nil {
+			return err // trouble completing command, quit task
+		}
+	}
+	return nil
 }
 
 func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) error {
@@ -169,7 +250,7 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 		return err
 	}
 
-	fmt.Println(host, "- configure docker engine")
+	fmt.Print(host, " - configure docker engine", " ")
 	if timeout := h.waitSSH(); timeout != nil {
 		return timeout
 	} else {
@@ -181,33 +262,33 @@ func (h *Host) InstallDockerEngineCertificate(host string, altname ...string) er
 func (h *Host) sendEngineCertificate(ca, cert, key *cert.PemBlock) error {
 	host, _ := h.cmdr.Host()
 
-	if err := h.cmdr.Copy(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
+	fmt.Print(host, " - Sending Cert", " ")
+	if err := h.sendfile(cert.Buf, int64(cert.Buf.Len()), "/etc/docker/"+cert.Name, 0644); err != nil {
 		return err
 	}
-	fmt.Println(host, "- Cert sent")
 
-	if err := h.cmdr.Copy(key.Buf, int64(key.Buf.Len()), "/etc/docker/"+key.Name, 0600); err != nil {
+	fmt.Print(host, " - Sending Key", " ")
+	if err := h.sendfile(key.Buf, int64(key.Buf.Len()), "/etc/docker/"+key.Name, 0600); err != nil {
 		return err
 	}
-	fmt.Println(host, "- Key sent")
 
-	if err := h.cmdr.Copy(ca.Buf, int64(ca.Buf.Len()), "/etc/docker/"+ca.Name, 0644); err != nil {
+	fmt.Print(host, " - Sending CA", " ")
+	if err := h.sendfile(ca.Buf, int64(ca.Buf.Len()), "/etc/docker/"+ca.Name, 0644); err != nil {
 		return err
 	}
-	fmt.Println(host, "- CA sent")
 
+	fmt.Print(host, " - Configuring Docker Engine", " ")
 	if err := h.configureDockerTLS(); err != nil {
 		return err
 	}
-	fmt.Println(host, "- Configured Docker Engine")
 
+	fmt.Print(host, " - Stopping Docker Engine", " ")
 	h.stopDocker()
-	fmt.Println(host, "- Stopped Docker Engine")
 
+	fmt.Print(host, " - Starting Docker Engine", " ")
 	if err := h.startDocker(); err != nil {
 		return err
 	}
-	fmt.Println(host, "- Started Docker Engine")
 
 	return nil
 }
@@ -248,16 +329,14 @@ func (h *Host) configureDockerTLS() error {
 	if r, err := dOpts.Reader(); err != nil {
 		return err
 	} else {
-		return h.cmdr.Copy(r, int64(r.Len()), daemonPath, 0600)
+		return h.sendfile(r, int64(r.Len()), daemonPath, 0600)
 	}
 }
 
 func (h *Host) startDocker() error {
-	_, e := h.cmdr.Run("service docker start")
-	return e
+	return h.exec("service docker start")
 }
 
 func (h *Host) stopDocker() error {
-	_, e := h.cmdr.Run("service docker stop")
-	return e
+	return h.exec("service docker stop")
 }
