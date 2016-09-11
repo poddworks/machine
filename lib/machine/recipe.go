@@ -76,7 +76,7 @@ provision:
 const INSTALL_PKG = `#!/bin/bash
 
 # install common utility packages
-apt-get update && apt-get install -y \
+apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     htop \
     lvm2 \
