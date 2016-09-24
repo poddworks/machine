@@ -138,15 +138,21 @@ func EnvCommand() cli.Command {
 				return cli.NewExitError("Required argument `name` missing", 1)
 			}
 
-			instMeta, ok := mach.InstList[name]
-			if !ok {
-				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
+			if name == "swarm" {
+				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
+				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
+				fmt.Printf("export DOCKER_HOST=%s://%s\n", "tcp", "localhost:2376")
+				fmt.Printf("# eval $(machine env %s)\n", name)
+			} else {
+				instMeta, ok := mach.InstList[name]
+				if !ok {
+					return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
+				}
+				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
+				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
+				fmt.Printf("export DOCKER_HOST=%s://%s\n", instMeta.DockerHost.Network(), instMeta.DockerHost)
+				fmt.Printf("# eval $(machine env %s)\n", name)
 			}
-
-			fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
-			fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
-			fmt.Printf("export DOCKER_HOST=%s://%s\n", instMeta.DockerHost.Network(), instMeta.DockerHost)
-			fmt.Printf("# eval $(machine env %s)\n", name)
 
 			return nil
 		},
