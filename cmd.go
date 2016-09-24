@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"text/template"
 )
 
 func ListInstanceCommand() cli.Command {
@@ -152,18 +153,48 @@ func EnvCommand() cli.Command {
 	}
 }
 
+type swarmParam struct {
+	Certpath string
+	Nodes    []string
+}
+
 func GenerateSwarmCommand() cli.Command {
 	return cli.Command{
 		Name:  "gen-swarm",
 		Usage: "Generate swarm master docker-compose style",
 		Action: func(c *cli.Context) error {
-			swarm, err := os.Create("docker-compose.yml")
+			org, certpath, err := mach.ParseCertArgs(c)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			var hosts = []string{"127.0.0.1", "localhost"}
+			_, Cert, Key, err := cert.GenerateServerCertificate(certpath, org, hosts)
+			if err != nil {
+				err = cli.NewExitError(err.Error(), 1)
+			}
+			if err = ioutil.WriteFile(certpath+"/"+Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if err = ioutil.WriteFile(certpath+"/"+Key.Name, Key.Buf.Bytes(), 0600); err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			swarm, err := os.Create("swarm.yml")
 			if err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
 			defer swarm.Close()
-			_, err = swarm.WriteString(mach.SWARM_MASTER)
-			if err != nil {
+
+			var info = swarmParam{
+				Nodes:    make([]string, 0),
+				Certpath: certpath,
+			}
+			for _, inst := range mach.InstList {
+				info.Nodes = append(info.Nodes, inst.DockerHost.String())
+			}
+			var tmpl = template.Must(template.New("swarm").Parse(mach.SWARM_MASTER))
+			if err := tmpl.Execute(swarm, info); err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
 

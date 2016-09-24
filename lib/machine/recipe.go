@@ -3,14 +3,16 @@ package machine
 const SWARM_MASTER = `version: "2"
 
 services:
-  swarm-master:
-    image: swarm:1.2.3
-    command: "manage -H tcp://0.0.0.0:2376 --tlsverify --tlscacert /conf/ca.pem --tlscert /conf/server-cert.pem -tlskey /conf/server-key.pem ${DISCOVERY_OPTS}"
+  swarm_manager:
+    image: swarm:latest
+    command: manage -H tcp://0.0.0.0:2376 --tlsverify --tlscacert /conf/ca.pem --tlscert /conf/server-cert.pem -tlskey /conf/server-key.pem nodes://{{ range $index, $element := .Nodes }}{{ if $index }}{{ print "," $element }}{{ else }}{{ $element }}{{ end }}{{ end }}
     network_mode: host
     ports:
       - "2376:2376"
     volumes:
-      - ${PWD}:/conf:ro
+      - {{ .Certpath }}/ca.pem:/conf/ca.pem
+      - {{ .Certpath }}/server-cert.pem:/conf/server-cert.pem
+      - {{ .Certpath }}/server-key.pem:/conf/server-key.pem
 `
 
 const COMPOSE = `---
