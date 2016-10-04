@@ -59,6 +59,7 @@ func NewCommand() cli.Command {
 			newStartCommand(),
 			newStopCommand(),
 			newRmCommand(),
+			newRebootCommand(),
 			newImageCommand(),
 		},
 	}
@@ -157,6 +158,33 @@ func newRmCommand() cli.Command {
 				}
 
 				delete(mach.InstList, name)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newRebootCommand() cli.Command {
+	return cli.Command{
+		Name:  "reboot",
+		Usage: "Reboot instance",
+		Action: func(c *cli.Context) error {
+			for _, name := range c.Args() {
+				info, ok := mach.InstList[name]
+				if !ok {
+					fmt.Fprintln(os.Stderr, "Target machine [", name, "] not found")
+					continue
+				}
+
+				_, err := svc.RebootInstances(&ec2.RebootInstancesInput{
+					InstanceIds: []*string{
+						aws.String(info.Id),
+					},
+				})
+				if err != nil {
+					return cli.NewExitError(err.Error(), 1)
+				}
 			}
 
 			return nil

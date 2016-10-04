@@ -34,6 +34,7 @@ func main() {
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
 		InstanceCommand("rm", "Remove And Terminate"),
+		InstanceCommand("reboot", "Reboot instanace without start -> stop -> start"),
 		IPCommand(),
 		EnvCommand(),
 		ExecCommand(),
