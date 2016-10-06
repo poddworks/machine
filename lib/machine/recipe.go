@@ -13,6 +13,7 @@ services:
       - {{ .Certpath }}/ca.pem:/conf/ca.pem
       - {{ .Certpath }}/server-cert.pem:/conf/server-cert.pem
       - {{ .Certpath }}/server-key.pem:/conf/server-key.pem
+      - {{ .Certpath }}/.swarm:/.swarm
 `
 
 const COMPOSE = `---
