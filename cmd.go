@@ -108,12 +108,17 @@ func IPCommand() cli.Command {
 		Action: func(c *cli.Context) error {
 			var name = c.Args().First()
 
+			if name == "" {
+				// Search for MACHINE_NAME for enabled/active instance
+				name = os.Getenv("MACHINE_NAME")
+			}
+
 			instMeta, ok := mach.InstList[name]
 			if !ok {
-				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
+				return cli.NewExitError("instance not found", 1)
 			}
 			if instMeta.DockerHost == nil {
-				return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not running"), 1)
+				return cli.NewExitError("instance unreachable", 1)
 			} else {
 				host, _, _ := net.SplitHostPort(instMeta.DockerHost.String())
 				fmt.Println(host)
@@ -142,19 +147,43 @@ func EnvCommand() cli.Command {
 				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
 				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
 				fmt.Printf("export DOCKER_HOST=%s://%s\n", "tcp", "localhost:2376")
+				fmt.Printf("export MACHINE_NAME=\n")
 				fmt.Printf("# eval $(machine env %s)\n", name)
 			} else {
 				instMeta, ok := mach.InstList[name]
 				if !ok {
-					return cli.NewExitError(fmt.Sprintln("Provided instance [", name, "] not found"), 1)
+					return cli.NewExitError("instance not found", 1)
 				}
 				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
 				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
 				fmt.Printf("export DOCKER_HOST=%s://%s\n", instMeta.DockerHost.Network(), instMeta.DockerHost)
+				fmt.Printf("export MACHINE_NAME=%s\n", name)
 				fmt.Printf("# eval $(machine env %s)\n", name)
 			}
 
 			return nil
+		},
+		Subcommands: []cli.Command{
+			{
+				Name:  "clear",
+				Usage: "Clear Docker Engine environment",
+				Action: func(c *cli.Context) error {
+					fmt.Println("unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_HOST MACHINE_NAME")
+					fmt.Println("# eval $(machine env clear)")
+					return nil
+				},
+			},
+			{
+				Name:  "display",
+				Usage: "Present configured Docker Engine environment",
+				Action: func(c *cli.Context) error {
+					fmt.Printf("DOCKER_TLS_VERIFY=%s\n", os.Getenv("DOCKER_TLS_VERIFY"))
+					fmt.Printf("DOCKER_CERT_PATH=%s\n", os.Getenv("DOCKER_CERT_PATH"))
+					fmt.Printf("DOCKER_HOST=%s\n", os.Getenv("DOCKER_HOST"))
+					fmt.Printf("MACHINE_NAME=%s\n", os.Getenv("MACHINE_NAME"))
+					return nil
+				},
+			},
 		},
 	}
 }
@@ -317,9 +346,14 @@ func SSHCommand() cli.Command {
 				inst = mach.NewHost(org, certpath, user, cert)
 			)
 
+			if name == "" {
+				// Search for MACHINE_NAME for enabled/active instance
+				name = os.Getenv("MACHINE_NAME")
+			}
+
 			info, ok := mach.InstList[name]
 			if !ok {
-				return cli.NewExitError("instance name not found", 1)
+				return cli.NewExitError("instance not found", 1)
 			}
 
 			host, _, _ := net.SplitHostPort(info.DockerHost.String())
