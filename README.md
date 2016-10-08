@@ -107,26 +107,29 @@ AUTHOR(S):
    Yi-Hung Jen <yihungjen@gmail.com>
 
 COMMANDS:
-     gen-recipe Generate recipe for Docker Engine configuration to use by exec playbook
-     gen-swarm  Generate swarm master docker-compose style
-     ls         List cached Docker Engine instance info
-     start      Start instance
-     stop       Stop instance
-     rm         Remove And Terminate instance
-     ip         Obtain IP address of the Docker Engine instance
-     env        Apply Docker Engine environment for target
-     exec       Invoke command on remote host via SSH
-     ssh        Login to remote machine or configure ssh
-     tls        Utility for generating certificate for TLS
-     aws        Create and Manage AWS machine
-     generic    Setup Machine to use Docker Engine
+     gen-recipe  Generate recipe for Docker Engine configuration to use by exec playbook
+     gen-swarm   Generate swarm master docker-compose style
+     ls          List cached Docker Engine instance info
+     start       Start instance
+     stop        Stop instance
+     rm          Remove And Terminate instance
+     reboot      Reboot instanace without start -> stop -> start instance
+     ip          Obtain IP address of the Docker Engine instance
+     env         Apply Docker Engine environment for target
+     exec        Invoke command on remote host via SSH
+     ssh         Login to remote machine or configure SSH
+     tls         Utility for generating certificate for TLS
+     dns         Utility for quering DNS record
+     aws         Create and Manage AWS machine
+     generic     Setup Machine to use Docker Engine
+     help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --user value         Run command as user [$MACHINE_USER]
-   --cert value         Private key to use in Authentication [$MACHINE_CERT_FILE]
-   --port value         Private key to use in Authentication (default: "22") [$MACHINE_PORT]
-   --certpath value     Certificate path (default: "~/.machine")
-   --organization value Organization for CA (default: "podd.org")
-   --help, -h           show help
-   --version, -v        print the version
+   --user value     Run command as user [$MACHINE_USER]
+   --cert value     Private key to use in Authentication [$MACHINE_CERT_FILE]
+   --port value     Connected to ssh port (default: "22") [$MACHINE_PORT]
+   --org value      Organization for Self Signed CA (default: "podd.org")
+   --confdir value  Configuration and Certificate path (default: "~/.machine")
+   --help, -h       show help
+   --version, -v    print the version
 ```

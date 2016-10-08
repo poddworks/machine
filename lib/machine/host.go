@@ -38,20 +38,20 @@ type Host struct {
 }
 
 func ParseCertArgs(c *cli.Context) (org, certpath string, err error) {
-	org = c.String("organization")
+	org = c.String("org")
 	if org == "" {
-		org = c.GlobalString("organization")
+		org = c.GlobalString("org")
 	}
 	if org == "" {
-		err = fmt.Errorf("Missing required argument organization")
+		err = fmt.Errorf("Missing required argument `org`")
 		return
 	}
-	certpath = c.String("certpath")
+	certpath = c.String("confdir")
 	if certpath == "" {
-		certpath = strings.Replace(c.GlobalString("certpath"), "~", os.Getenv("HOME"), 1)
+		certpath = strings.Replace(c.GlobalString("confdir"), "~", os.Getenv("HOME"), 1)
 	}
 	if certpath == "" {
-		err = fmt.Errorf("Missing required argument certpath")
+		err = fmt.Errorf("Missing required argument `confdir`")
 		return
 	}
 	if _, err = os.Stat(certpath); err != nil {

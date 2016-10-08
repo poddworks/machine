@@ -7,11 +7,12 @@ import (
 
 	"github.com/urfave/cli"
 
+	"fmt"
 	"os"
 )
 
 const (
-	DEFAULT_CERT_PATH = "~/.machine"
+	DEFAULT_CONFIG_DIR = "~/.machine"
 
 	DEFAULT_ORGANIZATION_PLACEMENT_NAME = "podd.org"
 
@@ -47,20 +48,20 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
 		cli.StringFlag{Name: "cert", EnvVar: "MACHINE_CERT_FILE", Usage: "Private key to use in Authentication"},
-		cli.StringFlag{Name: "port", EnvVar: "MACHINE_PORT", Value: DEFAULT_MACHINE_PORT, Usage: "Private key to use in Authentication"},
-		cli.StringFlag{Name: "certpath", Value: DEFAULT_CERT_PATH, Usage: "Certificate path"},
-		cli.StringFlag{Name: "organization", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for CA"},
-		cli.BoolFlag{Name: "skip-instance-cache", EnvVar: "MACHINE_SKIP_INSTNACE_CACHE", Usage: "Skip instance metadata"},
+		cli.StringFlag{Name: "port", EnvVar: "MACHINE_PORT", Value: DEFAULT_MACHINE_PORT, Usage: "Connected to ssh port"},
+		cli.StringFlag{Name: "org", Value: DEFAULT_ORGANIZATION_PLACEMENT_NAME, Usage: "Organization for Self Signed CA"},
+		cli.StringFlag{Name: "confdir", Value: DEFAULT_CONFIG_DIR, Usage: "Configuration and Certificate path"},
 	}
 	app.Before = func(c *cli.Context) error {
-		var skipCache = c.Bool("skip-instance-cache")
-		if !skipCache {
-			if err := mach.InstList.Load(); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
+		if err := mach.InstList.Load(); err != nil {
+			return cli.NewExitError(err.Error(), 1)
 		}
 		return nil
 	}
-	app.Action = nil
+	app.BashComplete = func(c *cli.Context) {
+		for _, command := range app.Commands {
+			fmt.Fprint(c.App.Writer, command.Name, " ")
+		}
+	}
 	app.Run(os.Args)
 }

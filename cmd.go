@@ -135,12 +135,16 @@ func EnvCommand() cli.Command {
 		Usage: "Apply Docker Engine environment for target",
 		Action: func(c *cli.Context) error {
 			var (
-				certpath = strings.Replace(DEFAULT_CERT_PATH, "~", os.Getenv("HOME"), 1)
-
 				name = c.Args().First()
 			)
+
 			if name == "" {
 				return cli.NewExitError("Required argument `name` missing", 1)
+			}
+
+			_, certpath, err := mach.ParseCertArgs(c)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
 			}
 
 			if name == "swarm" {
@@ -336,14 +340,10 @@ func SSHCommand() cli.Command {
 		Subcommands: []cli.Command{},
 		Action: func(c *cli.Context) error {
 			var (
-				org, certpath, _ = mach.ParseCertArgs(c)
-
 				user = c.GlobalString("user")
 				cert = c.GlobalString("cert")
 
 				name = c.Args().First()
-
-				inst = mach.NewHost(org, certpath, user, cert)
 			)
 
 			if name == "" {
@@ -351,10 +351,17 @@ func SSHCommand() cli.Command {
 				name = os.Getenv("MACHINE_NAME")
 			}
 
+			org, certpath, err := mach.ParseCertArgs(c)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
 			info, ok := mach.InstList[name]
 			if !ok {
 				return cli.NewExitError("instance not found", 1)
 			}
+
+			inst := mach.NewHost(org, certpath, user, cert)
 
 			host, _, _ := net.SplitHostPort(info.DockerHost.String())
 			if err := inst.Shell(host); err != nil {
@@ -473,11 +480,7 @@ func TlsCommand() cli.Command {
 				},
 				Action: func(c *cli.Context) error {
 					var (
-						skipCache = c.GlobalBool("skip-instance-cache")
-
 						isNew = c.Bool("is-new")
-
-						org, certpath, _ = mach.ParseCertArgs(c)
 
 						user = c.GlobalString("user")
 						cert = c.GlobalString("cert")
@@ -488,16 +491,18 @@ func TlsCommand() cli.Command {
 						name    = c.String("name")
 						driver  = c.String("driver")
 						addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
-
-						inst = mach.NewDockerHost(org, certpath, user, cert)
 					)
 
-					if !skipCache {
-						defer mach.InstList.Dump()
-						if name == "" {
-							return cli.NewExitError("Required argument `name` missing", 1)
-						}
+					if name == "" {
+						return cli.NewExitError("Required argument `name` missing", 1)
 					}
+
+					org, certpath, err := mach.ParseCertArgs(c)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					inst := mach.NewDockerHost(org, certpath, user, cert)
 
 					// Tell host provisioner whether to reuse old Docker Daemon config
 					inst.SetProvision(isNew)
@@ -506,17 +511,17 @@ func TlsCommand() cli.Command {
 						return cli.NewExitError(err.Error(), 1)
 					}
 
-					if !skipCache {
-						info, ok := mach.InstList[name]
-						if !ok {
-							info = &mach.Instance{Id: name, Driver: driver}
-						}
-						info.DockerHost = addr
-						info.State = "running"
+					defer mach.InstList.Dump()
 
-						// Update current records
-						mach.InstList[name] = info
+					info, ok := mach.InstList[name]
+					if !ok {
+						info = &mach.Instance{Id: name, Driver: driver}
 					}
+					info.DockerHost = addr
+					info.State = "running"
+
+					// Update current records
+					mach.InstList[name] = info
 
 					return nil
 				},
