@@ -98,6 +98,11 @@ func InstanceCommand(cmd, act string) cli.Command {
 
 			return nil
 		},
+		BashComplete: func(c *cli.Context) {
+			for name, _ := range mach.InstList {
+				fmt.Fprint(c.App.Writer, name, " ")
+			}
+		},
 	}
 }
 
@@ -125,6 +130,11 @@ func IPCommand() cli.Command {
 			}
 
 			return nil
+		},
+		BashComplete: func(c *cli.Context) {
+			for name, _ := range mach.InstList {
+				fmt.Fprint(c.App.Writer, name, " ")
+			}
 		},
 	}
 }
@@ -188,6 +198,12 @@ func EnvCommand() cli.Command {
 					return nil
 				},
 			},
+		},
+		BashComplete: func(c *cli.Context) {
+			fmt.Fprint(c.App.Writer, "swarm", " ")
+			for name, _ := range mach.InstList {
+				fmt.Fprint(c.App.Writer, name, " ")
+			}
 		},
 	}
 }
@@ -368,6 +384,11 @@ func SSHCommand() cli.Command {
 				return cli.NewExitError(err.Error(), 1)
 			} else {
 				return nil
+			}
+		},
+		BashComplete: func(c *cli.Context) {
+			for name, _ := range mach.InstList {
+				fmt.Fprint(c.App.Writer, name, " ")
 			}
 		},
 	}
