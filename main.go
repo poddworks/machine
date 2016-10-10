@@ -59,8 +59,9 @@ func main() {
 		return nil
 	}
 	app.BashComplete = func(c *cli.Context) {
-		for _, command := range app.Commands {
-			fmt.Fprint(c.App.Writer, command.Name, " ")
+		// List available commands
+		for _, cmd := range app.Commands {
+			fmt.Fprint(c.App.Writer, " ", cmd.Name)
 		}
 	}
 	app.Run(os.Args)

@@ -78,6 +78,10 @@ func InstanceCommand(cmd, act string) cli.Command {
 		Usage:           fmt.Sprintf("%s instance", act),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
+			if c.Args().First() == "--generate-bash-completion" {
+				return nil
+			}
+
 			for _, name := range c.Args() {
 				info, ok := mach.InstList[name]
 				if !ok {
@@ -346,6 +350,11 @@ func ExecCommand() cli.Command {
 				Action: runPlaybook,
 			},
 		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
 	}
 }
 
@@ -547,6 +556,11 @@ func TlsCommand() cli.Command {
 					return nil
 				},
 			},
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
 		},
 	}
 }

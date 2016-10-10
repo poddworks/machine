@@ -5,6 +5,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	"fmt"
 	"net"
 )
 
@@ -14,6 +15,11 @@ func NewCommand() cli.Command {
 		Usage: "Setup Machine to use Docker Engine",
 		Subcommands: []cli.Command{
 			newCreateCommand(),
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
 		},
 	}
 }

@@ -62,6 +62,11 @@ func NewCommand() cli.Command {
 			newRebootCommand(),
 			newImageCommand(),
 		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
 	}
 }
 
@@ -199,6 +204,11 @@ func newConfigCommand() cli.Command {
 		Subcommands: []cli.Command{
 			syncFromAWS(),
 			getFromAWSConfig(),
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
 		},
 	}
 }

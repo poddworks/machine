@@ -53,5 +53,10 @@ func DnstoolCommand() cli.Command {
 				},
 			},
 		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
 	}
 }
