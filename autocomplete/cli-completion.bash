@@ -13,6 +13,10 @@ _cli_bash_autocomplete() {
         compopt -o default
         COMPREPLY=()
         ;;
+    script|playbook)
+        compopt -o default
+        COMPREPLY=()
+        ;;
     *)
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
         ;;
