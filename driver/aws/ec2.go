@@ -103,13 +103,29 @@ func ec2_getSubnet(profile *VPCProfile, public bool) (subnetId *string) {
 	return collection[idx]
 }
 
-func ec2_findSecurityGroup(profile *VPCProfile, name ...string) (sgId []*string) {
-	sgId = make([]*string, 0)
+func ec2_findSecurityGroup(profile *VPCProfile, name ...string) (sgIDs []*string) {
+	sgIDs = make([]*string, 0)
 	for _, grp := range name {
+		var groupId *string
 		for _, sgrp := range profile.SecurityGroup {
 			if *sgrp.Name == grp {
-				sgId = append(sgId, sgrp.Id)
+				groupId = sgrp.Id
 			}
+		}
+		switch {
+		default:
+			sgIDs = append(sgIDs, groupId)
+			break
+		case groupId == nil && grp == "docker-machine":
+			groupId, _ = vpc_newDockerMachineSecutiryGroup(profile)
+			sgIDs = append(sgIDs, groupId)
+			break
+		case groupId == nil && grp == "ssh":
+			groupId, _ = vpc_newSSHSecutiryGroup(profile)
+			sgIDs = append(sgIDs, groupId)
+			break
+		case groupId == nil:
+			break
 		}
 	}
 	return
@@ -200,14 +216,17 @@ func newEC2Inst(c *cli.Context, profile *Profile, num2Launch int) (instances []*
 		instTags         = c.StringSlice("tag")
 		instType         = c.String("type")
 		instVols         = c.IntSlice("volume-size")
-
-		ec2param = &ec2.RunInstancesInput{
-			InstanceType:     aws.String(instType),
-			MaxCount:         aws.Int64(int64(num2Launch)),
-			MinCount:         aws.Int64(1),
-			SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
-		}
 	)
+
+	// Step 0: Prepare basic EC2 provision paramters
+	networkACLGroups = append(networkACLGroups, "docker-machine", "ssh")
+
+	ec2param := &ec2.RunInstancesInput{
+		InstanceType:     aws.String(instType),
+		MaxCount:         aws.Int64(int64(num2Launch)),
+		MinCount:         aws.Int64(1),
+		SecurityGroupIds: ec2_findSecurityGroup(&profile.VPC, networkACLGroups...),
+	}
 
 	// Step 1: determine the Amazone Machine Image ID
 	if amiId != "" {
@@ -218,7 +237,12 @@ func newEC2Inst(c *cli.Context, profile *Profile, num2Launch int) (instances []*
 		return nil, fmt.Errorf("Cannot proceed without an AMI")
 	}
 
-	// Step 2: determine keypair to use for remote access
+	// Step 1.1: make sure SecurityGroupIds meets requirement
+	if len(ec2param.SecurityGroupIds) == 0 {
+		return nil, fmt.Errorf("Cannot proceed without proper SecurityGroups")
+	}
+
+	// Step 3: determine keypair to use for remote access
 	if keyName != "" {
 		ec2param.KeyName = aws.String(keyName)
 	} else if len(profile.KeyPair) != 0 {

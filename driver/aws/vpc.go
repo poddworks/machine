@@ -72,6 +72,149 @@ func vpc_getInfo(id string) (vpc *ec2.Vpc, subs []*ec2.Subnet, grps []*ec2.Secur
 	return
 }
 
+func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, err error) {
+	param := &ec2.CreateSecurityGroupInput{
+		Description: aws.String("Docker Engine + Swarm Mode access policy"),
+		GroupName:   aws.String("docker-machine"),
+		VpcId:       profile.Id,
+	}
+	output, err := svc.CreateSecurityGroup(param)
+	if err != nil {
+		return nil, err
+	}
+	groupId = output.GroupId
+	ingress := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId: groupId,
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(2376),
+				ToPort:     aws.Int64(2376),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+			{
+				FromPort:   aws.Int64(2377),
+				ToPort:     aws.Int64(2377),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+			{
+				FromPort:   aws.Int64(7946),
+				ToPort:     aws.Int64(7946),
+				IpProtocol: aws.String("tcp"),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+			{
+				FromPort:   aws.Int64(7946),
+				ToPort:     aws.Int64(7946),
+				IpProtocol: aws.String("udp"),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+			{
+				FromPort:   aws.Int64(4789),
+				ToPort:     aws.Int64(4789),
+				IpProtocol: aws.String("tcp"),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+			{
+				FromPort:   aws.Int64(4789),
+				ToPort:     aws.Int64(4789),
+				IpProtocol: aws.String("udp"),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+		},
+	}
+	_, err = svc.AuthorizeSecurityGroupIngress(ingress)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	profile.SecurityGroup = append(profile.SecurityGroup, SecurityGroup{
+		Id:   groupId,
+		Desc: param.Description,
+		Name: param.GroupName,
+	})
+	return
+}
+
+func vpc_newSSHSecutiryGroup(profile *VPCProfile) (groupId *string, err error) {
+	param := &ec2.CreateSecurityGroupInput{
+		Description: aws.String("Allowed SSH access policy"),
+		GroupName:   aws.String("ssh"),
+		VpcId:       profile.Id,
+	}
+	output, err := svc.CreateSecurityGroup(param)
+	if err != nil {
+		return nil, err
+	}
+	groupId = output.GroupId
+	ingress := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId: groupId,
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(22),
+				ToPort:     aws.Int64(22),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupName: aws.String("default"),
+					},
+				},
+			},
+		},
+	}
+	_, err = svc.AuthorizeSecurityGroupIngress(ingress)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	profile.SecurityGroup = append(profile.SecurityGroup, SecurityGroup{
+		Id:   groupId,
+		Desc: param.Description,
+		Name: param.GroupName,
+	})
+	return
+}
+
 func vpcInit(c *cli.Context, profile *VPCProfile) (account_id string, err error) {
 	vpc, subs, grps, err := vpc_getInfo(c.String("vpc-id"))
 	if err != nil {
