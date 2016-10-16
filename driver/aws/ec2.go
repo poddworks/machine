@@ -54,10 +54,7 @@ func ec2Init() error {
 		} else {
 			for _, r := range resp.Reservations {
 				for _, inst := range r.Instances {
-					var instanceName = getEc2InstanceName(inst)
-					if !strings.HasSuffix(instanceName, *inst.InstanceId) {
-						instanceName = fmt.Sprintf("%s-%s", instanceName, *inst.InstanceId)
-					}
+					var instanceName = fmt.Sprintf("%s-%s", getEc2InstanceName(inst), *inst.InstanceId)
 					info, ok := mach.InstList[instanceName]
 					if !ok {
 						info = &mach.Instance{Id: *inst.InstanceId}
@@ -322,7 +319,7 @@ func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDo
 						Tags: []*ec2.Tag{
 							{
 								Key:   aws.String("Name"),
-								Value: aws.String(state.name),
+								Value: aws.String(name),
 							},
 						},
 						Resources: []*string{
