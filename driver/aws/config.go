@@ -127,10 +127,16 @@ func getFromAWSConfig() cli.Command {
 				}
 			}
 
-			if output, err := json.MarshalIndent(v, "", "    "); err != nil {
+			output, err := json.MarshalIndent(v, "", "    ")
+			if err != nil {
 				return cli.NewExitError(fmt.Sprintln("Corrupt profile -", name), 1)
+			}
+
+			var text = string(output)
+			if unquoted, err := strconv.Unquote(text); err == nil {
+				fmt.Println(unquoted)
 			} else {
-				fmt.Println(string(output))
+				fmt.Println(text)
 			}
 
 			return nil
