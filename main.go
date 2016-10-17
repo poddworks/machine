@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/jeffjen/machine/driver/aws"
-	mach "github.com/jeffjen/machine/lib/machine"
+	"github.com/poddworks/machine/driver/aws"
+	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/urfave/cli"
 
@@ -20,7 +20,7 @@ const (
 
 func main() {
 	app := cli.NewApp()
-	app.Version = "0.0.1"
+	app.Version = "1.0.0"
 	app.Name = "machine"
 	app.Usage = "Create/Bootstrap machine to use with Docker engine"
 	app.EnableBashCompletion = true

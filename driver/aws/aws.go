@@ -1,7 +1,7 @@
 package aws
 
 import (
-	mach "github.com/jeffjen/machine/lib/machine"
+	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"

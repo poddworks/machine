@@ -1,7 +1,7 @@
 package main
 
 import (
-	mach "github.com/jeffjen/machine/lib/machine"
+	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/urfave/cli"
 

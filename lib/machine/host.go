@@ -1,9 +1,9 @@
 package machine
 
 import (
-	"github.com/jeffjen/machine/lib/cert"
-	"github.com/jeffjen/machine/lib/docker"
-	"github.com/jeffjen/machine/lib/ssh"
+	"github.com/poddworks/machine/lib/cert"
+	"github.com/poddworks/machine/lib/docker"
+	"github.com/poddworks/machine/lib/ssh"
 
 	"github.com/urfave/cli"
 

@@ -101,14 +101,16 @@ USAGE:
    machine [global options] command [command options] [arguments...]
 
 VERSION:
-   0.0.1
+   1.0.0
 
 AUTHOR(S):
    Yi-Hung Jen <yihungjen@gmail.com>
 
 COMMANDS:
-     gen-recipe  Generate recipe for Docker Engine configuration to use by exec playbook
+     gen-recipe  Generate recipe for Docker Engine configuration to use by exec
+playbook
      gen-swarm   Generate swarm master docker-compose style
+     create      Create Docker Machine
      ls          List cached Docker Engine instance info
      start       Start instance
      stop        Stop instance
@@ -121,7 +123,6 @@ COMMANDS:
      tls         Utility for generating certificate for TLS
      dns         Utility for quering DNS record
      aws         Create and Manage AWS machine
-     generic     Setup Machine to use Docker Engine
      help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:

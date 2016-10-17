@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/jeffjen/machine/lib/ssh"
 	"github.com/jeffjen/yaml"
+	"github.com/poddworks/machine/lib/ssh"
 
 	"github.com/urfave/cli"
 

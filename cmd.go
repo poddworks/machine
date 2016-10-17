@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/jeffjen/machine/driver/aws"
-	"github.com/jeffjen/machine/driver/generic"
-	"github.com/jeffjen/machine/lib/cert"
-	mach "github.com/jeffjen/machine/lib/machine"
+	"github.com/poddworks/machine/driver/aws"
+	"github.com/poddworks/machine/driver/generic"
+	"github.com/poddworks/machine/lib/cert"
+	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
