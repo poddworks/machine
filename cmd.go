@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/jeffjen/machine/driver/aws"
+	"github.com/jeffjen/machine/driver/generic"
 	"github.com/jeffjen/machine/lib/cert"
 	mach "github.com/jeffjen/machine/lib/machine"
 
@@ -72,6 +74,23 @@ func ListInstanceCommand() cli.Command {
 	}
 }
 
+func CreateCommand() cli.Command {
+	return cli.Command{
+		Name:  "create",
+		Usage: "Create Docker Machine",
+		Flags: []cli.Flag{},
+		Subcommands: []cli.Command{
+			aws.NewCreateCommand(),
+			generic.NewCreateCommand(),
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
+	}
+}
+
 func InstanceCommand(cmd, act string) cli.Command {
 	return cli.Command{
 		Name:            cmd,
@@ -124,10 +143,10 @@ func IPCommand() cli.Command {
 
 			instMeta, ok := mach.InstList[name]
 			if !ok {
-				return cli.NewExitError("instance not found", 1)
+				return cli.NewExitError("Instance not found", 1)
 			}
 			if instMeta.DockerHost == nil {
-				return cli.NewExitError("instance unreachable", 1)
+				return cli.NewExitError("Instance unreachable", 1)
 			} else {
 				host, _, _ := net.SplitHostPort(instMeta.DockerHost.String())
 				fmt.Println(host)
@@ -170,7 +189,7 @@ func EnvCommand() cli.Command {
 			} else {
 				instMeta, ok := mach.InstList[name]
 				if !ok {
-					return cli.NewExitError("instance not found", 1)
+					return cli.NewExitError("Instance not found", 1)
 				}
 				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
 				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
@@ -250,7 +269,7 @@ func GenerateSwarmCommand() cli.Command {
 				Certpath: certpath,
 			}
 			for _, inst := range mach.InstList {
-				info.Nodes = append(info.Nodes, inst.DockerHost.String())
+				info.Nodes = append(info.Nodes, inst.Host)
 			}
 			var tmpl = template.Must(template.New("swarm").Parse(mach.SWARM_MASTER))
 			if err := tmpl.Execute(swarm, info); err != nil {
@@ -383,13 +402,12 @@ func SSHCommand() cli.Command {
 
 			info, ok := mach.InstList[name]
 			if !ok {
-				return cli.NewExitError("instance not found", 1)
+				return cli.NewExitError("Instance not found", 1)
 			}
 
 			inst := mach.NewHost(org, certpath, user, cert)
 
-			host, _, _ := net.SplitHostPort(info.DockerHost.String())
-			if err := inst.Shell(host); err != nil {
+			if err := inst.Shell(info.Host); err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			} else {
 				return nil
@@ -503,10 +521,6 @@ func TlsCommand() cli.Command {
 				Usage: "Generate and install certificate on target",
 				Flags: []cli.Flag{
 					cli.BoolFlag{Name: "is-new", Usage: "Installing new Certificate on existing instance"},
-					cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine Certificate"},
-					cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
-					cli.StringFlag{Name: "name", Usage: "Name to identify Docker Host"},
-					cli.StringFlag{Name: "driver", Value: "generic", Usage: "Hint at what type of driver created this instance"},
 				},
 				Action: func(c *cli.Context) error {
 					var (
@@ -515,17 +529,21 @@ func TlsCommand() cli.Command {
 						user = c.GlobalString("user")
 						cert = c.GlobalString("cert")
 
-						hostname = c.String("host")
-						altnames = c.StringSlice("altname")
-
-						name    = c.String("name")
-						driver  = c.String("driver")
-						addr, _ = net.ResolveTCPAddr("tcp", hostname+":2376")
+						name = c.Args().First()
 					)
 
 					if name == "" {
 						return cli.NewExitError("Required argument `name` missing", 1)
 					}
+
+					info, ok := mach.InstList[name]
+					if !ok {
+						return cli.NewExitError("Instance not found", 1)
+					}
+					if info.DockerHost == nil {
+						return cli.NewExitError("Instance not available", 1)
+					}
+					defer mach.InstList.Dump()
 
 					org, certpath, err := mach.ParseCertArgs(c)
 					if err != nil {
@@ -537,23 +555,17 @@ func TlsCommand() cli.Command {
 					// Tell host provisioner whether to reuse old Docker Daemon config
 					inst.SetProvision(isNew)
 
-					if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
+					if err := inst.InstallDockerEngineCertificate(info.Host, info.AltHost...); err != nil {
 						return cli.NewExitError(err.Error(), 1)
 					}
 
-					defer mach.InstList.Dump()
-
-					info, ok := mach.InstList[name]
-					if !ok {
-						info = &mach.Instance{Id: name, Driver: driver}
-					}
-					info.DockerHost = addr
 					info.State = "running"
-
-					// Update current records
-					mach.InstList[name] = info
-
 					return nil
+				},
+				BashComplete: func(c *cli.Context) {
+					for name, _ := range mach.InstList {
+						fmt.Fprint(c.App.Writer, name, " ")
+					}
 				},
 			},
 		},

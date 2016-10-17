@@ -5,29 +5,13 @@ import (
 
 	"github.com/urfave/cli"
 
-	"fmt"
 	"net"
 )
 
-func NewCommand() cli.Command {
+func NewCreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "generic",
 		Usage: "Setup Machine to use Docker Engine",
-		Subcommands: []cli.Command{
-			newCreateCommand(),
-		},
-		BashComplete: func(c *cli.Context) {
-			for _, cmd := range c.App.Commands {
-				fmt.Fprint(c.App.Writer, " ", cmd.Name)
-			}
-		},
-	}
-}
-
-func newCreateCommand() cli.Command {
-	return cli.Command{
-		Name:  "create",
-		Usage: "Install Docker Engine on target",
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "host", Usage: "Host to install Docker Engine"},
 			cli.StringSliceFlag{Name: "altname", Usage: "Alternative name for Host"},
@@ -69,6 +53,8 @@ func newCreateCommand() cli.Command {
 				Id:         name,
 				Driver:     "generic",
 				DockerHost: addr,
+				Host:       hostname,
+				AltHost:    altnames,
 				State:      "running",
 			}
 

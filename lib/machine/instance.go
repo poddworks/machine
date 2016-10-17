@@ -17,6 +17,8 @@ type Instance struct {
 	Id         string
 	Driver     string
 	DockerHost *net.TCPAddr
+	Host       string
+	AltHost    []string
 	State      string
 }
 

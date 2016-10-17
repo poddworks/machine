@@ -26,36 +26,118 @@ var (
 
 	// AWS Profile
 	profile = make(AWSProfile)
+
+	// Common AWS Flags
+	awsFlags = []cli.Flag{
+		cli.StringFlag{Name: "region", EnvVar: "AWS_REGION", Usage: "AWS Region"},
+		cli.StringFlag{Name: "key", EnvVar: "AWS_ACCESS_KEY_ID", Usage: "AWS access key"},
+		cli.StringFlag{Name: "secret", EnvVar: "AWS_SECRET_ACCESS_KEY", Usage: "AWS secret key"},
+		cli.StringFlag{Name: "token", EnvVar: "AWS_SESSION_TOKEN", Usage: "session token for temporary credentials"},
+	}
 )
 
-func NewCommand() cli.Command {
+func beforeAction(c *cli.Context) error {
+	if err := profile.Load(); err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+	// bootstrap EC2 client with command line args
+	cfg := aws.NewConfig()
+	if region := c.String("region"); region != "" {
+		cfg = cfg.WithRegion(region)
+	}
+	if id, secret, token := c.String("key"), c.String("secret"), c.String("token"); id != "" && secret != "" {
+		cfg = cfg.WithCredentials(credentials.NewStaticCredentials(id, secret, token))
+	}
+	svc = ec2.New(session.New(cfg))
+	return nil
+}
+
+func NewCreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "aws",
 		Usage: "Create and Manage AWS machine",
-		Flags: []cli.Flag{
-			cli.StringFlag{Name: "region", EnvVar: "AWS_REGION", Usage: "AWS Region"},
-			cli.StringFlag{Name: "key", EnvVar: "AWS_ACCESS_KEY_ID", Usage: "AWS access key"},
-			cli.StringFlag{Name: "secret", EnvVar: "AWS_SECRET_ACCESS_KEY", Usage: "AWS secret key"},
-			cli.StringFlag{Name: "token", EnvVar: "AWS_SESSION_TOKEN", Usage: "session token for temporary credentials"},
-		},
-		Before: func(c *cli.Context) error {
-			if err := profile.Load(); err != nil {
+		Flags: append(awsFlags,
+			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
+			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
+			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
+			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
+			cli.StringFlag{Name: "iam-role", Usage: "EC2 IAM Role to apply"},
+			cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
+			cli.IntFlag{Name: "root-size", Value: 16, Usage: "EC2 root volume size"},
+			cli.StringFlag{Name: "ssh-key", Usage: "EC2 instance SSH KeyPair"},
+			cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
+			cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
+			cli.StringSliceFlag{Name: "tag", Usage: "EC2 instance tag in the form field=value"},
+			cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
+			cli.IntSliceFlag{Name: "volume-size", Usage: "EC2 EBS volume size"},
+		),
+		Before: beforeAction,
+		Action: func(c *cli.Context) error {
+			defer mach.InstList.Dump()
+
+			var (
+				user = c.GlobalString("user")
+				cert = c.GlobalString("cert")
+
+				name = c.Args().First()
+
+				num2Launch = c.Int("count")
+				useDocker  = c.Bool("use-docker")
+
+				org, certpath, _ = mach.ParseCertArgs(c)
+			)
+
+			if name == "" {
+				return cli.NewExitError("Required argument `name` missing", 1)
+			} else if _, ok := mach.InstList[name]; ok {
+				return cli.NewExitError("Machine exist", 1)
+			}
+
+			region, ok := profile[c.GlobalString("region")]
+			if !ok {
+				return cli.NewExitError("Please run sync in the region of choice", 1)
+			}
+			p, ok := region[c.String("profile")]
+			if !ok {
+				return cli.NewExitError("Unable to find matching VPC profile", 1)
+			}
+
+			instances, err := newEC2Inst(c, p, num2Launch)
+			if err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
-			// bootstrap EC2 client with command line args
-			cfg := aws.NewConfig()
-			if region := c.String("region"); region != "" {
-				cfg = cfg.WithRegion(region)
+
+			// Invoke EC2 launch procedure
+			for state := range deployEC2Inst(user, cert, name, org, certpath, num2Launch, useDocker, instances) {
+				if state.err == nil {
+					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
+					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
+					mach.InstList[state.name] = &mach.Instance{
+						Id:         *state.InstanceId,
+						Driver:     "aws",
+						DockerHost: addr,
+						Host:       *state.PublicIpAddress,
+						AltHost:    []string{*state.PrivateIpAddress},
+						State:      "running",
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, state.err)
+				}
 			}
-			if id, secret, token := c.String("key"), c.String("secret"), c.String("token"); id != "" && secret != "" {
-				cfg = cfg.WithCredentials(credentials.NewStaticCredentials(id, secret, token))
-			}
-			svc = ec2.New(session.New(cfg))
+
 			return nil
 		},
+	}
+}
+
+func NewCommand() cli.Command {
+	return cli.Command{
+		Name:   "aws",
+		Usage:  "Create and Manage AWS machine",
+		Flags:  awsFlags,
+		Before: beforeAction,
 		Subcommands: []cli.Command{
 			newConfigCommand(),
-			newCreateCommand(),
 			newStartCommand(),
 			newStopCommand(),
 			newRmCommand(),
@@ -98,6 +180,8 @@ func newStartCommand() cli.Command {
 				} else {
 					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					info.DockerHost = addr
+					info.Host = *state.PublicIpAddress
+					info.AltHost = []string{*state.PrivateIpAddress}
 					info.State = "running"
 				}
 			}
@@ -131,6 +215,8 @@ func newStopCommand() cli.Command {
 				}
 
 				info.DockerHost = nil
+				info.Host = ""
+				info.AltHost = []string{}
 				info.State = "stopped"
 			}
 
@@ -209,81 +295,6 @@ func newConfigCommand() cli.Command {
 			for _, cmd := range c.App.Commands {
 				fmt.Fprint(c.App.Writer, " ", cmd.Name)
 			}
-		},
-	}
-}
-
-func newCreateCommand() cli.Command {
-	return cli.Command{
-		Name:  "create",
-		Usage: "Create a new EC2 instance",
-		Flags: []cli.Flag{
-			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
-			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
-			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
-			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
-			cli.StringFlag{Name: "iam-role", Usage: "EC2 IAM Role to apply"},
-			cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
-			cli.IntFlag{Name: "root-size", Value: 16, Usage: "EC2 root volume size"},
-			cli.StringFlag{Name: "ssh-key", Usage: "EC2 instance SSH KeyPair"},
-			cli.BoolFlag{Name: "subnet-private", Usage: "Launch EC2 instance to internal subnet"},
-			cli.StringFlag{Name: "subnet-id", Usage: "Launch EC2 instance to the specified subnet"},
-			cli.StringSliceFlag{Name: "tag", Usage: "EC2 instance tag in the form field=value"},
-			cli.StringFlag{Name: "type", Value: "t2.micro", Usage: "EC2 instance type"},
-			cli.IntSliceFlag{Name: "volume-size", Usage: "EC2 EBS volume size"},
-		},
-		Action: func(c *cli.Context) error {
-			defer mach.InstList.Dump()
-
-			var (
-				user = c.GlobalString("user")
-				cert = c.GlobalString("cert")
-
-				name = c.Args().First()
-
-				num2Launch = c.Int("count")
-				useDocker  = c.Bool("use-docker")
-
-				org, certpath, _ = mach.ParseCertArgs(c)
-			)
-
-			if name == "" {
-				return cli.NewExitError("Required argument `name` missing", 1)
-			} else if _, ok := mach.InstList[name]; ok {
-				return cli.NewExitError("Machine exist", 1)
-			}
-
-			region, ok := profile[c.GlobalString("region")]
-			if !ok {
-				return cli.NewExitError("Please run sync in the region of choice", 1)
-			}
-			p, ok := region[c.String("profile")]
-			if !ok {
-				return cli.NewExitError("Unable to find matching VPC profile", 1)
-			}
-
-			instances, err := newEC2Inst(c, p, num2Launch)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			// Invoke EC2 launch procedure
-			for state := range deployEC2Inst(user, cert, name, org, certpath, num2Launch, useDocker, instances) {
-				if state.err == nil {
-					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
-					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)
-					mach.InstList[state.name] = &mach.Instance{
-						Id:         *state.InstanceId,
-						Driver:     "aws",
-						DockerHost: addr,
-						State:      "running",
-					}
-				} else {
-					fmt.Fprintln(os.Stderr, state.err)
-				}
-			}
-
-			return nil
 		},
 	}
 }

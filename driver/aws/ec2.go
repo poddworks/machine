@@ -75,6 +75,8 @@ func ec2Init() error {
 								addr, _ = net.ResolveTCPAddr("tcp", *inst.PublicIpAddress+":2376")
 							}
 							info.DockerHost = addr
+							info.Host = *inst.PublicIpAddress
+							info.AltHost = []string{*inst.PrivateIpAddress}
 						}()
 						mach.InstList[instanceName] = info
 					}

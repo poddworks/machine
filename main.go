@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/jeffjen/machine/driver/aws"
-	"github.com/jeffjen/machine/driver/generic"
 	mach "github.com/jeffjen/machine/lib/machine"
 
 	"github.com/urfave/cli"
@@ -31,6 +30,7 @@ func main() {
 	app.Commands = []cli.Command{
 		GenerateRecipeCommand(),
 		GenerateSwarmCommand(),
+		CreateCommand(),
 		ListInstanceCommand(),
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
@@ -43,7 +43,6 @@ func main() {
 		TlsCommand(),
 		DnstoolCommand(),
 		aws.NewCommand(),
-		generic.NewCommand(),
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},
