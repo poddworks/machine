@@ -37,6 +37,10 @@ func (inst *Instance) DockerHostName() string {
 	return fmt.Sprintf("%s://%s", inst.DockerHost.Network(), inst.DockerHost)
 }
 
+func (inst *Instance) HostName() string {
+	return fmt.Sprintf("%s", inst.DockerHost)
+}
+
 func (inst *Instance) NewDockerClient(certpath string) *docker.Client {
 	const dockerAPIVersion = "1.24"
 

@@ -34,14 +34,12 @@ func main() {
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
-		GenerateRecipeCommand(),
-		GenerateSwarmCommand(),
 		CreateCommand(),
 		ListInstanceCommand(),
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
+		InstanceCommand("reboot", "Reboot"),
 		InstanceCommand("rm", "Remove And Terminate"),
-		InstanceCommand("reboot", "Reboot instanace without start -> stop -> start"),
 		IPCommand(),
 		EnvCommand(),
 		ExecCommand(),
@@ -49,6 +47,7 @@ func main() {
 		TlsCommand(),
 		DnstoolCommand(),
 		aws.NewCommand(),
+		RecipeCommand(),
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "user", EnvVar: "MACHINE_USER", Usage: "Run command as user"},

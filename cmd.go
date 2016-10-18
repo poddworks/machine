@@ -96,7 +96,7 @@ func CreateCommand() cli.Command {
 func InstanceCommand(cmd, act string) cli.Command {
 	return cli.Command{
 		Name:            cmd,
-		Usage:           fmt.Sprintf("%s instance", act),
+		Usage:           fmt.Sprintf("%s instances", act),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
 			if c.Args().First() == "--generate-bash-completion" {
@@ -228,116 +228,6 @@ func EnvCommand() cli.Command {
 			for name, _ := range mach.InstList {
 				fmt.Fprint(c.App.Writer, name, " ")
 			}
-		},
-	}
-}
-
-type swarmParam struct {
-	Certpath string
-	Nodes    []string
-}
-
-func GenerateSwarmCommand() cli.Command {
-	return cli.Command{
-		Name:  "gen-swarm",
-		Usage: "Generate swarm master docker-compose style",
-		Action: func(c *cli.Context) error {
-			org, certpath, err := mach.ParseCertArgs(c)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			var hosts = []string{"127.0.0.1", "localhost"}
-			_, Cert, Key, err := cert.GenerateServerCertificate(certpath, org, hosts)
-			if err != nil {
-				err = cli.NewExitError(err.Error(), 1)
-			}
-			if err = ioutil.WriteFile(certpath+"/"+Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			if err = ioutil.WriteFile(certpath+"/"+Key.Name, Key.Buf.Bytes(), 0600); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			swarm, err := os.Create("swarm.yml")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer swarm.Close()
-
-			var info = swarmParam{
-				Nodes:    make([]string, 0),
-				Certpath: certpath,
-			}
-			for _, inst := range mach.InstList {
-				info.Nodes = append(info.Nodes, inst.Host)
-			}
-			var tmpl = template.Must(template.New("swarm").Parse(mach.SWARM_MASTER))
-			if err := tmpl.Execute(swarm, info); err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			return nil
-		},
-	}
-}
-
-func GenerateRecipeCommand() cli.Command {
-	return cli.Command{
-		Name:  "gen-recipe",
-		Usage: "Generate recipe for Docker Engine configuration to use by exec playbook",
-		Action: func(c *cli.Context) error {
-			compose, err := os.Create("compose.yml")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer compose.Close()
-			_, err = compose.WriteString(mach.COMPOSE)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			installPkg, err := os.Create("00-install-pkg")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer installPkg.Close()
-			_, err = installPkg.WriteString(mach.INSTALL_PKG)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			installDockerEngine, err := os.Create("01-install-docker-engine")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer installDockerEngine.Close()
-			_, err = installDockerEngine.WriteString(mach.INSTALL_DOCKER_ENGINE)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			configSystem, err := os.Create("02-config-system")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer configSystem.Close()
-			_, err = configSystem.WriteString(mach.CONFIGURE_SYSTEM)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			defaultDockerDaemon, err := os.Create("docker.daemon.json")
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-			defer defaultDockerDaemon.Close()
-			_, err = defaultDockerDaemon.WriteString(mach.DOCKER_DAEMON_CONFIG)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
-			return nil
 		},
 	}
 }
@@ -565,6 +455,140 @@ func TlsCommand() cli.Command {
 
 						// Force set instance running state
 						info.State = "running"
+					}
+
+					return nil
+				},
+				BashComplete: func(c *cli.Context) {
+					for name, _ := range mach.InstList {
+						fmt.Fprint(c.App.Writer, name, " ")
+					}
+				},
+			},
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
+	}
+}
+
+func RecipeCommand() cli.Command {
+	return cli.Command{
+		Name:  "recipe",
+		Usage: "Utility for generating recipe for provisioning/management",
+		Subcommands: []cli.Command{
+			{
+				Name:  "get-provision",
+				Usage: "Generate recipe for Docker Engine configuration to use by exec playbook",
+				Action: func(c *cli.Context) error {
+					compose, err := os.Create("compose.yml")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer compose.Close()
+					_, err = compose.WriteString(mach.COMPOSE)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					installPkg, err := os.Create("00-install-pkg")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer installPkg.Close()
+					_, err = installPkg.WriteString(mach.INSTALL_PKG)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					installDockerEngine, err := os.Create("01-install-docker-engine")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer installDockerEngine.Close()
+					_, err = installDockerEngine.WriteString(mach.INSTALL_DOCKER_ENGINE)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					configSystem, err := os.Create("02-config-system")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer configSystem.Close()
+					_, err = configSystem.WriteString(mach.CONFIGURE_SYSTEM)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					defaultDockerDaemon, err := os.Create("docker.daemon.json")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer defaultDockerDaemon.Close()
+					_, err = defaultDockerDaemon.WriteString(mach.DOCKER_DAEMON_CONFIG)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					return nil
+				},
+			},
+			{
+				Name:  "get-swarm-compose",
+				Usage: "Generate Docker Engine Swarm docker-compose style",
+				Action: func(c *cli.Context) error {
+					type swarmParam struct {
+						Certpath string
+						Nodes    []string
+					}
+
+					org, certpath, err := mach.ParseCertArgs(c)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					var hosts = []string{"127.0.0.1", "localhost"}
+					_, Cert, Key, err := cert.GenerateServerCertificate(certpath, org, hosts)
+					if err != nil {
+						err = cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(certpath+"/"+Cert.Name, Cert.Buf.Bytes(), 0644); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					if err = ioutil.WriteFile(certpath+"/"+Key.Name, Key.Buf.Bytes(), 0600); err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+
+					swarm, err := os.Create("swarm.yml")
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					}
+					defer swarm.Close()
+
+					var info = swarmParam{
+						Nodes:    make([]string, 0),
+						Certpath: certpath,
+					}
+					if len(c.Args()) > 0 {
+						for _, name := range c.Args() {
+							node, ok := mach.InstList[name]
+							if !ok {
+								return cli.NewExitError("Instance not found", 1)
+							}
+							info.Nodes = append(info.Nodes, node.DockerHost.String())
+						}
+					} else {
+						for _, inst := range mach.InstList {
+							info.Nodes = append(info.Nodes, inst.DockerHost.String())
+						}
+					}
+
+					var tmpl = template.Must(template.New("swarm").Parse(mach.SWARM_MASTER))
+					if err := tmpl.Execute(swarm, info); err != nil {
+						return cli.NewExitError(err.Error(), 1)
 					}
 
 					return nil
