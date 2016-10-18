@@ -520,7 +520,7 @@ func TlsCommand() cli.Command {
 				Name:  "gen-cert-install",
 				Usage: "Generate and install certificate on target",
 				Flags: []cli.Flag{
-					cli.BoolFlag{Name: "is-new", Usage: "Installing new Certificate on existing instance"},
+					cli.BoolFlag{Name: "is-new", Usage: "Bootstrap certificate on new Machine instance"},
 				},
 				Action: func(c *cli.Context) error {
 					var (
@@ -528,38 +528,44 @@ func TlsCommand() cli.Command {
 
 						user = c.GlobalString("user")
 						cert = c.GlobalString("cert")
-
-						name = c.Args().First()
 					)
 
-					if name == "" {
-						return cli.NewExitError("Required argument `name` missing", 1)
-					}
-
-					info, ok := mach.InstList[name]
-					if !ok {
-						return cli.NewExitError("Instance not found", 1)
-					}
-					if info.DockerHost == nil {
-						return cli.NewExitError("Instance not available", 1)
+					if len(c.Args()) == 0 {
+						return cli.NewExitError("Required at least one instance name", 1)
 					}
 					defer mach.InstList.Dump()
 
-					org, certpath, err := mach.ParseCertArgs(c)
-					if err != nil {
-						return cli.NewExitError(err.Error(), 1)
+					for _, name := range c.Args() {
+						if name == "" {
+							return cli.NewExitError("Required argument `name` missing", 1)
+						}
+
+						info, ok := mach.InstList[name]
+						if !ok {
+							return cli.NewExitError("Instance not found", 1)
+						}
+						if info.DockerHost == nil {
+							return cli.NewExitError("Instance not available", 1)
+						}
+
+						org, certpath, err := mach.ParseCertArgs(c)
+						if err != nil {
+							return cli.NewExitError(err.Error(), 1)
+						}
+
+						inst := mach.NewDockerHost(org, certpath, user, cert)
+
+						// Tell host provisioner whether to reuse old Docker Daemon config
+						inst.SetProvision(isNew)
+
+						if err := inst.InstallDockerEngineCertificate(info.Host, info.AltHost...); err != nil {
+							return cli.NewExitError(err.Error(), 1)
+						}
+
+						// Force set instance running state
+						info.State = "running"
 					}
 
-					inst := mach.NewDockerHost(org, certpath, user, cert)
-
-					// Tell host provisioner whether to reuse old Docker Daemon config
-					inst.SetProvision(isNew)
-
-					if err := inst.InstallDockerEngineCertificate(info.Host, info.AltHost...); err != nil {
-						return cli.NewExitError(err.Error(), 1)
-					}
-
-					info.State = "running"
 					return nil
 				},
 				BashComplete: func(c *cli.Context) {
