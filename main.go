@@ -7,7 +7,9 @@ import (
 	"github.com/urfave/cli"
 
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 )
 
 const (
@@ -17,6 +19,10 @@ const (
 
 	DEFAULT_MACHINE_PORT = "22"
 )
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 func main() {
 	app := cli.NewApp()

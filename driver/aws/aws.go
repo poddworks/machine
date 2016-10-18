@@ -10,15 +10,9 @@ import (
 	"github.com/urfave/cli"
 
 	"fmt"
-	"math/rand"
 	"net"
 	"os"
-	"time"
 )
-
-func init() {
-	rand.Seed(time.Now().Unix())
-}
 
 var (
 	// AWS EC2 client object for establishing command
