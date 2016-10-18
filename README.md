@@ -95,7 +95,7 @@ complete provisioning.
 ## Appendix - Command reference
 ```
 NAME:
-   machine - Create/Bootstrap machine to use with Docker engine
+   machine - Swiss Army knife for DevOps
 
 USAGE:
    machine [global options] command [command options] [arguments...]
@@ -107,23 +107,21 @@ AUTHOR(S):
    Yi-Hung Jen <yihungjen@gmail.com>
 
 COMMANDS:
-     gen-recipe  Generate recipe for Docker Engine configuration to use by exec
-playbook
-     gen-swarm   Generate swarm master docker-compose style
-     create      Create Docker Machine
-     ls          List cached Docker Engine instance info
-     start       Start instance
-     stop        Stop instance
-     rm          Remove And Terminate instance
-     reboot      Reboot instanace without start -> stop -> start instance
-     ip          Obtain IP address of the Docker Engine instance
-     env         Apply Docker Engine environment for target
-     exec        Invoke command on remote host via SSH
-     ssh         Login to remote machine or configure SSH
-     tls         Utility for generating certificate for TLS
-     dns         Utility for quering DNS record
-     aws         Create and Manage AWS machine
-     help, h     Shows a list of commands or help for one command
+     create   Create instances
+     start    Start instances
+     stop     Stop instances
+     reboot   Reboot instances
+     rm       Remove And Terminate instances
+     ls       List cached Docker Engine instance info
+     ip       Obtain IP address of the Docker Engine instance
+     env      Apply Docker Engine environment for target
+     exec     Invoke command on remote host via SSH
+     ssh      Login to remote machine with SSH
+     tls      Generate certificate for TLS
+     dns      Query DNS record
+     aws      Manage resources on AWS
+     recipe   Generate recipe for provision/management
+     help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --user value     Run command as user [$MACHINE_USER]

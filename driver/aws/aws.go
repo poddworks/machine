@@ -49,7 +49,7 @@ func beforeAction(c *cli.Context) error {
 func NewCreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "aws",
-		Usage: "Create and Manage AWS machine",
+		Usage: "Provision Docker Engine on AWS EC2",
 		Flags: append(awsFlags,
 			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
 			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
@@ -127,7 +127,7 @@ func NewCreateCommand() cli.Command {
 func NewCommand() cli.Command {
 	return cli.Command{
 		Name:   "aws",
-		Usage:  "Create and Manage AWS machine",
+		Usage:  "Manage resources on AWS",
 		Flags:  awsFlags,
 		Before: beforeAction,
 		Subcommands: []cli.Command{

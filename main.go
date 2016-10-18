@@ -28,18 +28,18 @@ func main() {
 	app := cli.NewApp()
 	app.Version = "1.0.0"
 	app.Name = "machine"
-	app.Usage = "Create/Bootstrap machine to use with Docker engine"
+	app.Usage = "Swiss Army knife for DevOps"
 	app.EnableBashCompletion = true
 	app.Authors = []cli.Author{
 		cli.Author{"Yi-Hung Jen", "yihungjen@gmail.com"},
 	}
 	app.Commands = []cli.Command{
 		CreateCommand(),
-		ListInstanceCommand(),
 		InstanceCommand("start", "Start"),
 		InstanceCommand("stop", "Stop"),
 		InstanceCommand("reboot", "Reboot"),
 		InstanceCommand("rm", "Remove And Terminate"),
+		ListInstanceCommand(),
 		IPCommand(),
 		EnvCommand(),
 		ExecCommand(),

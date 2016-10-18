@@ -11,6 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
 
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -78,7 +79,7 @@ func ListInstanceCommand() cli.Command {
 func CreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "create",
-		Usage: "Create Docker Machine",
+		Usage: "Create instances",
 		Flags: []cli.Flag{},
 		Subcommands: []cli.Command{
 			aws.NewCreateCommand(),
@@ -271,7 +272,7 @@ func ExecCommand() cli.Command {
 func SSHCommand() cli.Command {
 	return cli.Command{
 		Name:        "ssh",
-		Usage:       "Login to remote machine or configure SSH",
+		Usage:       "Login to remote machine with SSH",
 		Subcommands: []cli.Command{},
 		Action: func(c *cli.Context) error {
 			var (
@@ -315,7 +316,7 @@ func SSHCommand() cli.Command {
 func TlsCommand() cli.Command {
 	return cli.Command{
 		Name:  "tls",
-		Usage: "Utility for generating certificate for TLS",
+		Usage: "Generate certificate for TLS",
 		Subcommands: []cli.Command{
 			{
 				Name:  "bootstrap",
@@ -477,7 +478,7 @@ func TlsCommand() cli.Command {
 func RecipeCommand() cli.Command {
 	return cli.Command{
 		Name:  "recipe",
-		Usage: "Utility for generating recipe for provisioning/management",
+		Usage: "Generate recipe for provision/management",
 		Subcommands: []cli.Command{
 			{
 				Name:  "get-provision",
@@ -597,6 +598,57 @@ func RecipeCommand() cli.Command {
 					for name, _ := range mach.InstList {
 						fmt.Fprint(c.App.Writer, name, " ")
 					}
+				},
+			},
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
+	}
+}
+
+func DnstoolCommand() cli.Command {
+	return cli.Command{
+		Name:  "dns",
+		Usage: "Query DNS record",
+		Subcommands: []cli.Command{
+			{
+				Name:  "lookup-srv",
+				Usage: "Lookup SRV record",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "proto", Value: "tcp", Usage: "Service Protocol [tcp|udp]"},
+					cli.BoolFlag{Name: "verbose", Usage: "Print more info"},
+				},
+				Action: func(c *cli.Context) error {
+					var (
+						verbose = c.Bool("verbose")
+
+						proto = c.String("proto")
+
+						srv, zone = c.Args().Get(0), c.Args().Get(1)
+					)
+
+					records, err := mach.LookupSRV(srv, proto, zone)
+					if err != nil {
+						return cli.NewExitError(err.Error(), 1)
+					} else {
+						for _, r := range records {
+							r.Target = r.Target[0 : len(r.Target)-1]
+						}
+					}
+
+					if verbose {
+						text, _ := json.MarshalIndent(records, "", "  ")
+						fmt.Fprintf(os.Stdout, "%s\n", text)
+					} else {
+						for _, r := range records {
+							fmt.Fprintf(os.Stdout, "%s ", r.Target)
+						}
+					}
+
+					return nil
 				},
 			},
 		},

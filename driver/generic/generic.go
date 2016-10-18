@@ -11,7 +11,7 @@ import (
 func NewCreateCommand() cli.Command {
 	return cli.Command{
 		Name:  "generic",
-		Usage: "Setup Machine to use Docker Engine",
+		Usage: "Provision Docker Engine on Linux instance",
 		Flags: []cli.Flag{
 			cli.BoolFlag{Name: "no-install", Usage: "Skip Docker Engine Installation"},
 			cli.StringFlag{Name: "driver", Value: "generic", Usage: "Assign driver for Docker Engine"},
