@@ -1,17 +1,18 @@
 package main
 
 import (
+	mach "github.com/poddworks/machine/lib/machine"
+
 	"github.com/poddworks/machine/driver/aws"
 	"github.com/poddworks/machine/driver/generic"
+	"github.com/poddworks/machine/driver/swarm"
 	"github.com/poddworks/machine/lib/cert"
-	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
 
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"path"
 	"strings"
@@ -38,10 +39,10 @@ func ListInstanceCommand() cli.Command {
 			if current {
 				table.SetHeader([]string{"Name", "DockerHost", "Driver", "State"})
 				for name, inst := range mach.InstList {
-					var dockerhost = inst.DockerHost.String()
+					var dockerhost = inst.DockerHostName()
 					var oneRow = []string{
 						name,        // Name
-						dockerhost,  // DockerHost
+						inst.Host,   // DockerHost
 						inst.Driver, // Driver
 						inst.State,  // State
 					}
@@ -52,11 +53,11 @@ func ListInstanceCommand() cli.Command {
 			} else {
 				table.SetHeader([]string{"", "Name", "DockerHost", "Driver", "State"})
 				for name, inst := range mach.InstList {
-					var dockerhost = inst.DockerHost.String()
+					var dockerhost = inst.DockerHostName()
 					var oneRow = []string{
 						"",          // Current
 						name,        // Name
-						dockerhost,  // DockerHost
+						inst.Host,   // DockerHost
 						inst.Driver, // Driver
 						inst.State,  // State
 					}
@@ -82,6 +83,7 @@ func CreateCommand() cli.Command {
 		Subcommands: []cli.Command{
 			aws.NewCreateCommand(),
 			generic.NewCreateCommand(),
+			swarm.NewCreateCommand(),
 		},
 		BashComplete: func(c *cli.Context) {
 			for _, cmd := range c.App.Commands {
@@ -148,8 +150,7 @@ func IPCommand() cli.Command {
 			if instMeta.DockerHost == nil {
 				return cli.NewExitError("Instance unreachable", 1)
 			} else {
-				host, _, _ := net.SplitHostPort(instMeta.DockerHost.String())
-				fmt.Println(host)
+				fmt.Println(instMeta.Host)
 			}
 
 			return nil
@@ -193,7 +194,7 @@ func EnvCommand() cli.Command {
 				}
 				fmt.Printf("export DOCKER_TLS_VERIFY=1\n")
 				fmt.Printf("export DOCKER_CERT_PATH=%s\n", certpath)
-				fmt.Printf("export DOCKER_HOST=%s://%s\n", instMeta.DockerHost.Network(), instMeta.DockerHost)
+				fmt.Printf("export DOCKER_HOST=%s\n", instMeta.DockerHostName())
 				fmt.Printf("export MACHINE_NAME=%s\n", name)
 				fmt.Printf("# eval $(machine env %s)\n", name)
 			}
