@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/poddworks/machine/driver/aws"
 	mach "github.com/poddworks/machine/lib/machine"
+
+	"github.com/poddworks/machine/driver/aws"
+	"github.com/poddworks/machine/driver/swarm"
 
 	"github.com/urfave/cli"
 
@@ -47,6 +49,7 @@ func main() {
 		TlsCommand(),
 		DnstoolCommand(),
 		aws.NewCommand(),
+		swarm.NewCommand(),
 		RecipeCommand(),
 	}
 	app.Flags = []cli.Flag{

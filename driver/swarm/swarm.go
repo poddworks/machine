@@ -77,3 +77,85 @@ func NewCreateCommand() cli.Command {
 		},
 	}
 }
+
+func NewCommand() cli.Command {
+	return cli.Command{
+		Name:  "swarm",
+		Usage: "Manage Docker Engine Swarm",
+		Subcommands: []cli.Command{
+			joinToCluster(),
+		},
+		BashComplete: func(c *cli.Context) {
+			for _, cmd := range c.App.Commands {
+				fmt.Fprint(c.App.Writer, " ", cmd.Name)
+			}
+		},
+	}
+}
+
+func joinToCluster() cli.Command {
+	return cli.Command{
+		Name:  "join",
+		Usage: "Join to a Swarm mode cluster",
+		Flags: []cli.Flag{
+			cli.BoolFlag{Name: "as-manager", Usage: "Join as manager"},
+			cli.StringFlag{Name: "manager", Usage: "Manager of this cluster"},
+		},
+		Action: func(c *cli.Context) error {
+			var (
+				managerName = c.String("manager")
+
+				newNodes = c.Args()
+
+				asManager = c.Bool("as-manager")
+
+				joinToken string
+			)
+
+			_, certpath, err := mach.ParseCertArgs(c)
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+
+			manager, ok := mach.InstList[managerName]
+			if !ok {
+				return cli.NewExitError("Manager node not found", 1)
+			} else {
+				manager.NewDockerClient(certpath)
+			}
+
+			// Step 1: Retrieve advertiseAddr from manager
+			advertiseAddr := manager.AltHost[0]
+
+			// Step 2: Request a join token (manager and worker token)
+			managerToken, workerToken, err := manager.SwarmToken()
+			if err != nil {
+				return cli.NewExitError(err.Error(), 1)
+			}
+			if asManager {
+				joinToken = managerToken
+			} else {
+				joinToken = workerToken
+			}
+
+			for _, name := range newNodes {
+				node, ok := mach.InstList[name]
+				if !ok {
+					return cli.NewExitError("Swarm node not found", 1)
+				} else {
+					node.NewDockerClient(certpath)
+				}
+				if err := node.SwarmJoin(joinToken, advertiseAddr); err != nil {
+					return cli.NewExitError(fmt.Sprintf("%s - %s", name, err), 1)
+				}
+			}
+
+			return nil
+		},
+		BashComplete: func(c *cli.Context) {
+			for name, _ := range mach.InstList {
+				fmt.Fprint(c.App.Writer, name, " ")
+			}
+		},
+	}
+}
