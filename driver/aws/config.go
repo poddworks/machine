@@ -23,8 +23,11 @@ func syncFromAWS() cli.Command {
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "name", Value: "default", Usage: "Name of the profile"},
 			cli.StringFlag{Name: "vpc-id", Value: "default", Usage: "AWS VPC identifier"},
+			cli.BoolFlag{Name: "force,f", Usage: "Force new config file"},
 		},
 		Action: func(c *cli.Context) error {
+			var forceNew = c.Bool("force")
+
 			defer profile.Dump()
 			defer mach.InstList.Dump()
 
@@ -40,7 +43,7 @@ func syncFromAWS() cli.Command {
 			if err := keypairInit(c, p); err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
-			if err := ec2Init(); err != nil {
+			if err := ec2Init(forceNew); err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}
 			if _, ok := profile[p.Region]; !ok {

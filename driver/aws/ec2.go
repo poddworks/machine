@@ -38,8 +38,16 @@ func getEc2InstanceName(inst *ec2.Instance) (name string) {
 	return
 }
 
-func ec2Init() error {
+func ec2Init(forceNew bool) error {
 	var resp = new(ec2.DescribeInstancesOutput)
+
+	if forceNew {
+		for name, node := range mach.InstList {
+			if node.Driver == "aws" {
+				delete(mach.InstList, name)
+			}
+		}
+	}
 
 	for more := true; more; {
 		params := &ec2.DescribeInstancesInput{}
