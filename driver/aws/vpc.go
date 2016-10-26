@@ -97,7 +97,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -112,7 +112,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -122,7 +122,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("tcp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -132,7 +132,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("udp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -142,7 +142,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("tcp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -152,7 +152,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("udp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -196,7 +196,7 @@ func vpc_newSSHSecutiryGroup(profile *VPCProfile) (groupId *string, err error) {
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("default"),
+						GroupName: aws.String("docker-machine"),
 					},
 				},
 			},
@@ -239,5 +239,7 @@ func vpcInit(c *cli.Context, profile *VPCProfile) (account_id string, err error)
 		})
 		account_id = *group.OwnerId
 	}
+	vpc_newDockerMachineSecutiryGroup(profile)
+	vpc_newSSHSecutiryGroup(profile)
 	return
 }
