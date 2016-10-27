@@ -1,10 +1,11 @@
 package machine
 
 import (
+	config "github.com/poddworks/machine/config"
+
 	swarm "github.com/docker/docker/api/types/swarm"
 	docker "github.com/docker/docker/client"
 	tlsconfig "github.com/docker/go-connections/tlsconfig"
-
 	"golang.org/x/net/context"
 
 	"encoding/json"
@@ -14,11 +15,6 @@ import (
 	"net/http"
 	"os"
 	path "path/filepath"
-	"strings"
-)
-
-const (
-	INSTANCE_LISTING_FILE = "~/.machine/instance.json"
 )
 
 type Instance struct {
@@ -41,7 +37,7 @@ func (inst *Instance) HostName() string {
 	return fmt.Sprintf("%s", inst.DockerHost)
 }
 
-func (inst *Instance) NewDockerClient(certpath string) *docker.Client {
+func (inst *Instance) NewDockerClient() *docker.Client {
 	const dockerAPIVersion = "1.24"
 
 	if inst.DockerHost == nil {
@@ -50,9 +46,9 @@ func (inst *Instance) NewDockerClient(certpath string) *docker.Client {
 
 	var client *http.Client
 	options := tlsconfig.Options{
-		CAFile:             path.Join(certpath, "ca.pem"),
-		CertFile:           path.Join(certpath, "cert.pem"),
-		KeyFile:            path.Join(certpath, "key.pem"),
+		CAFile:             path.Join(config.Config.Certpath, "ca.pem"),
+		CertFile:           path.Join(config.Config.Certpath, "cert.pem"),
+		KeyFile:            path.Join(config.Config.Certpath, "key.pem"),
 		InsecureSkipVerify: false,
 	}
 	tlsc, err := tlsconfig.Client(options)
@@ -70,9 +66,9 @@ func (inst *Instance) NewDockerClient(certpath string) *docker.Client {
 	return inst.cli
 }
 
-func (inst *Instance) SwarmInit(certpath string) (addr string, err error) {
+func (inst *Instance) SwarmInit() (addr string, err error) {
 	if inst.cli == nil {
-		inst.cli = inst.NewDockerClient(certpath)
+		inst.cli = inst.NewDockerClient()
 	}
 	clusterInit := swarm.InitRequest{
 		ListenAddr:    "0.0.0.0",
@@ -124,11 +120,7 @@ var (
 )
 
 func (r RegisteredInstances) Load() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
+	origin, err := os.OpenFile(config.Config.Instance, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -141,28 +133,10 @@ func (r RegisteredInstances) Load() error {
 }
 
 func (r RegisteredInstances) Dump() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
+	origin, err := os.OpenFile(config.Config.Instance, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer origin.Close()
 	return json.NewEncoder(origin).Encode(r)
-}
-
-func getConfigPath() (string, error) {
-	conf := strings.Replace(INSTANCE_LISTING_FILE, "~", os.Getenv("HOME"), 1)
-	confdir := path.Dir(conf)
-	if _, err := os.Stat(confdir); err != nil {
-		if os.IsNotExist(err) {
-			return conf, os.MkdirAll(confdir, 0700)
-		} else {
-			return "", err
-		}
-	} else {
-		return conf, nil
-	}
 }

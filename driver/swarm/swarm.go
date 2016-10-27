@@ -22,11 +22,6 @@ func NewCreateCommand() cli.Command {
 				workers  = c.StringSlice("worker")
 			)
 
-			_, certpath, err := mach.ParseCertArgs(c)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
 			if len(managers) == 0 {
 				return cli.NewExitError("You must specify at least one Manager Node", 1)
 			}
@@ -38,7 +33,7 @@ func NewCreateCommand() cli.Command {
 			}
 
 			// Step 1: Connect to one manager and enable swarm mode
-			advertiseAddr, err := firstManager.SwarmInit(certpath)
+			advertiseAddr, err := firstManager.SwarmInit()
 			if err != nil {
 				return cli.NewExitError(fmt.Sprintf("%s - %s", firstName, err), 1)
 			}
@@ -46,7 +41,7 @@ func NewCreateCommand() cli.Command {
 			// Step 2: Request a join token (manager and worker token)
 			managerToken, workerToken, err := firstManager.SwarmToken()
 			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
+				return cli.NewExitError("error/failed-to-create-swarm-token", 1)
 			}
 
 			// Step 3: Join manager nodes
@@ -55,7 +50,7 @@ func NewCreateCommand() cli.Command {
 				if !ok {
 					return cli.NewExitError("Manager node not found", 1)
 				} else {
-					node.NewDockerClient(certpath)
+					node.NewDockerClient()
 				}
 				if err := node.SwarmJoin(managerToken, advertiseAddr); err != nil {
 					return cli.NewExitError(fmt.Sprintf("%s - %s", name, err), 1)
@@ -66,10 +61,10 @@ func NewCreateCommand() cli.Command {
 			for _, name := range workers {
 				node, ok := mach.InstList[name]
 				if !ok {
-					return cli.NewExitError("Manager node not found", 1)
+					return cli.NewExitError("error/manager-node-not-found", 1)
 				}
 				if err := node.SwarmJoin(workerToken, advertiseAddr); err != nil {
-					return cli.NewExitError(err.Error(), 1)
+					return cli.NewExitError("error/failed-to-join-node", 1)
 				}
 			}
 
@@ -112,16 +107,11 @@ func joinToCluster() cli.Command {
 				joinToken string
 			)
 
-			_, certpath, err := mach.ParseCertArgs(c)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
 			manager, ok := mach.InstList[managerName]
 			if !ok {
 				return cli.NewExitError("Manager node not found", 1)
 			} else {
-				manager.NewDockerClient(certpath)
+				manager.NewDockerClient()
 			}
 
 			// Step 1: Retrieve advertiseAddr from manager
@@ -130,7 +120,7 @@ func joinToCluster() cli.Command {
 			// Step 2: Request a join token (manager and worker token)
 			managerToken, workerToken, err := manager.SwarmToken()
 			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
+				return cli.NewExitError("error/failed-to-create-swarm-token", 1)
 			}
 			if asManager {
 				joinToken = managerToken
@@ -143,7 +133,7 @@ func joinToCluster() cli.Command {
 				if !ok {
 					return cli.NewExitError("Swarm node not found", 1)
 				} else {
-					node.NewDockerClient(certpath)
+					node.NewDockerClient()
 				}
 				if err := node.SwarmJoin(joinToken, advertiseAddr); err != nil {
 					return cli.NewExitError(fmt.Sprintf("%s - %s", name, err), 1)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	config "github.com/poddworks/machine/config"
 	mach "github.com/poddworks/machine/lib/machine"
 
 	"github.com/poddworks/machine/driver/aws"
@@ -60,8 +61,11 @@ func main() {
 		cli.StringFlag{Name: "confdir", Value: DEFAULT_CONFIG_DIR, Usage: "Configuration and Certificate path"},
 	}
 	app.Before = func(c *cli.Context) error {
+		if err := config.Parse(c); err != nil {
+			return cli.NewExitError("error/failed-to-parse-config", 1)
+		}
 		if err := mach.InstList.Load(); err != nil {
-			return cli.NewExitError(err.Error(), 1)
+			return cli.NewExitError("error/failed-to-load-cache-instance", 1)
 		}
 		return nil
 	}

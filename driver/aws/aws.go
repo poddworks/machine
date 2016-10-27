@@ -54,7 +54,7 @@ func NewCreateCommand() cli.Command {
 			cli.BoolFlag{Name: "use-docker", Usage: "Opt in to use Docker Engine"},
 			cli.StringFlag{Name: "ami-id", Usage: "EC2 instance AMI ID"},
 			cli.IntFlag{Name: "count", Value: 1, Usage: "EC2 instances to launch in this request"},
-			cli.StringSliceFlag{Name: "group", Usage: "Network security group for user"},
+			cli.StringSliceFlag{Name: "group", Usage: "Network security group for instance"},
 			cli.StringFlag{Name: "iam-role", Usage: "EC2 IAM Role to apply"},
 			cli.StringFlag{Name: "profile", Value: "default", Usage: "Name of the profile"},
 			cli.IntFlag{Name: "root-size", Value: 16, Usage: "EC2 root volume size"},
@@ -70,15 +70,10 @@ func NewCreateCommand() cli.Command {
 			defer mach.InstList.Dump()
 
 			var (
-				user = c.GlobalString("user")
-				cert = c.GlobalString("cert")
-
 				name = c.Args().First()
 
 				num2Launch = c.Int("count")
 				useDocker  = c.Bool("use-docker")
-
-				org, certpath, _ = mach.ParseCertArgs(c)
 			)
 
 			if name == "" {
@@ -102,7 +97,7 @@ func NewCreateCommand() cli.Command {
 			}
 
 			// Invoke EC2 launch procedure
-			for state := range deployEC2Inst(user, cert, name, org, certpath, num2Launch, useDocker, instances) {
+			for state := range deployEC2Inst(name, num2Launch, useDocker, instances) {
 				if state.err == nil {
 					addr, _ := net.ResolveTCPAddr("tcp", *state.PublicIpAddress+":2376")
 					fmt.Printf("%s - %s - Instance ID: %s\n", *state.PublicIpAddress, *state.PrivateIpAddress, *state.InstanceId)

@@ -316,7 +316,7 @@ func newEC2Inst(c *cli.Context, profile *Profile, num2Launch int) (instances []*
 	return resp.Instances, nil
 }
 
-func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDocker bool, instances []*ec2.Instance) <-chan ec2state {
+func deployEC2Inst(name string, num2Launch int, useDocker bool, instances []*ec2.Instance) <-chan ec2state {
 	var wg sync.WaitGroup
 	out := make(chan ec2state)
 	go func() {
@@ -342,7 +342,7 @@ func deployEC2Inst(user, cert, name, org, certpath string, num2Launch int, useDo
 					}
 					_, state.err = svc.CreateTags(tagparam)
 					if useDocker {
-						host := mach.NewDockerHost(org, certpath, user, cert)
+						host := mach.NewDockerHost()
 						if state.err == nil {
 							state.err = host.InstallDockerEngine(*state.PublicIpAddress)
 						}

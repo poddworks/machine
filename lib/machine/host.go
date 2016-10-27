@@ -1,17 +1,15 @@
 package machine
 
 import (
+	config "github.com/poddworks/machine/config"
 	"github.com/poddworks/machine/lib/cert"
 	"github.com/poddworks/machine/lib/docker"
 	"github.com/poddworks/machine/lib/ssh"
-
-	"github.com/urfave/cli"
 
 	"bytes"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -37,48 +35,23 @@ type Host struct {
 	provision bool
 }
 
-func ParseCertArgs(c *cli.Context) (org, certpath string, err error) {
-	org = c.String("org")
-	if org == "" {
-		org = c.GlobalString("org")
-	}
-	if org == "" {
-		err = fmt.Errorf("Missing required argument `org`")
-		return
-	}
-	certpath = c.String("confdir")
-	if certpath == "" {
-		certpath = strings.Replace(c.GlobalString("confdir"), "~", os.Getenv("HOME"), 1)
-	}
-	if certpath == "" {
-		err = fmt.Errorf("Missing required argument `confdir`")
-		return
-	}
-	if _, err = os.Stat(certpath); err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(certpath, 0700)
-		}
-	}
-	return
-}
-
-func NewDockerHost(org, certpath, user, cert string) *Host {
+func NewDockerHost() *Host {
 	return &Host{
-		CertPath:     certpath,
-		Organization: org,
-		User:         user,
-		Cert:         cert,
+		CertPath:     config.Config.Certpath,
+		Organization: config.Config.Org,
+		User:         config.Config.User,
+		Cert:         config.Config.Cert,
 		IsDocker:     true,
 		provision:    true,
 	}
 }
 
-func NewHost(org, certpath, user, cert string) *Host {
+func NewHost() *Host {
 	return &Host{
-		CertPath:     certpath,
-		Organization: org,
-		User:         user,
-		Cert:         cert,
+		CertPath:     config.Config.Certpath,
+		Organization: config.Config.Org,
+		User:         config.Config.User,
+		Cert:         config.Config.Cert,
 		IsDocker:     false,
 		provision:    true,
 	}

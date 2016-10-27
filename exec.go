@@ -106,7 +106,7 @@ func runPlaybook(c *cli.Context) error {
 
 	r, err := os.Open(c.Args()[0])
 	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
+		return cli.NewExitError("error/playbook-not-found", 1)
 	}
 	defer r.Close()
 

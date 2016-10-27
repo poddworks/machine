@@ -22,8 +22,6 @@ func NewCreateCommand() cli.Command {
 			defer mach.InstList.Dump()
 
 			var (
-				user     = c.GlobalString("user")
-				cert     = c.GlobalString("cert")
 				driver   = c.String("driver")
 				hostname = c.String("host")
 				altnames = c.StringSlice("altname")
@@ -34,30 +32,21 @@ func NewCreateCommand() cli.Command {
 				noInstall = c.Bool("no-install")
 			)
 
-			org, certpath, err := mach.ParseCertArgs(c)
-			if err != nil {
-				return cli.NewExitError(err.Error(), 1)
-			}
-
 			if name == "" {
 				return cli.NewExitError("Required argument `name` missing", 1)
 			} else if _, ok := mach.InstList[name]; ok {
 				return cli.NewExitError("Machine exist", 1)
 			}
 
-			if user == "" || cert == "" {
-				return cli.NewExitError("Missing required remote auth info", 1)
-			}
-
-			inst := mach.NewDockerHost(org, certpath, user, cert)
+			inst := mach.NewDockerHost()
 
 			if !noInstall {
 				if err := inst.InstallDockerEngine(hostname); err != nil {
-					return cli.NewExitError(err.Error(), 1)
+					return cli.NewExitError("error/failed-to-install-docker-engine", 1)
 				}
 			}
 			if err := inst.InstallDockerEngineCertificate(hostname, altnames...); err != nil {
-				return cli.NewExitError(err.Error(), 1)
+				return cli.NewExitError("error/failed-to-install-docker-cert", 1)
 			}
 			mach.InstList[name] = &mach.Instance{
 				Id:         name,

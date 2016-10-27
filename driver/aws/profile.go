@@ -1,15 +1,11 @@
 package aws
 
 import (
+	config "github.com/poddworks/machine/config"
+
 	"encoding/json"
 	"io"
 	"os"
-	path "path/filepath"
-	"strings"
-)
-
-const (
-	AWS_PROFILE_CONFIG_FILE = "~/.machine/aws-profile.json"
 )
 
 type SubnetProfile struct {
@@ -59,11 +55,7 @@ type RegionProfile map[string]*Profile
 type AWSProfile map[string]RegionProfile
 
 func (a AWSProfile) Load() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_RDONLY|os.O_CREATE, 0600)
+	origin, err := os.OpenFile(config.Config.AWSProfile, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -76,28 +68,10 @@ func (a AWSProfile) Load() error {
 }
 
 func (a AWSProfile) Dump() error {
-	conf, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-	origin, err := os.OpenFile(conf, os.O_WRONLY|os.O_TRUNC, 0600)
+	origin, err := os.OpenFile(config.Config.AWSProfile, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer origin.Close()
 	return json.NewEncoder(origin).Encode(a)
-}
-
-func getConfigPath() (string, error) {
-	conf := strings.Replace(AWS_PROFILE_CONFIG_FILE, "~", os.Getenv("HOME"), 1)
-	confdir := path.Dir(conf)
-	if _, err := os.Stat(confdir); err != nil {
-		if os.IsNotExist(err) {
-			return conf, os.MkdirAll(confdir, 0700)
-		} else {
-			return "", err
-		}
-	} else {
-		return conf, nil
-	}
 }
