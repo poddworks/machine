@@ -86,11 +86,11 @@ func getFromAWSConfig() cli.Command {
 			}
 
 			if _, ok := profile[region]; !ok {
-				return cli.NewExitError("Selected region had no stored profile", 1)
+				return cli.NewExitError("error/profile-not-found-for-region", 1)
 			}
 
 			if _, ok := profile[region][name]; !ok {
-				return cli.NewExitError("Selected name had no profile", 1)
+				return cli.NewExitError("error/profile-not-found-for-name", 1)
 			}
 
 			// TODO: report config value by dotted notation argument
@@ -130,7 +130,7 @@ func getFromAWSConfig() cli.Command {
 				}
 			}
 
-			output, err := json.MarshalIndent(v, "", "    ")
+			output, err := json.MarshalIndent(v, "", "  ")
 			if err != nil {
 				return cli.NewExitError(fmt.Sprintln("Corrupt profile -", name), 1)
 			}
