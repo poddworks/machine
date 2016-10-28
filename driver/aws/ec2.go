@@ -85,10 +85,12 @@ func ec2Init(forceNew bool) error {
 							var addr *net.TCPAddr
 							if inst.PublicIpAddress != nil {
 								addr, _ = net.ResolveTCPAddr("tcp", *inst.PublicIpAddress+":2376")
+								info.DockerHost = addr
+								info.Host = *inst.PublicIpAddress
 							}
-							info.DockerHost = addr
-							info.Host = *inst.PublicIpAddress
-							info.AltHost = []string{*inst.PrivateIpAddress}
+							if inst.PrivateIpAddress != nil {
+								info.AltHost = []string{*inst.PrivateIpAddress}
+							}
 						}()
 						mach.InstList[instanceName] = info
 					}
