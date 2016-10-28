@@ -82,7 +82,7 @@ func NewCreateCommand() cli.Command {
 				return cli.NewExitError("Machine exist", 1)
 			}
 
-			region, ok := profile[c.GlobalString("region")]
+			region, ok := profile[c.String("region")]
 			if !ok {
 				return cli.NewExitError("Please run sync in the region of choice", 1)
 			}
