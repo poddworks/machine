@@ -9,7 +9,6 @@ import (
 	"github.com/poddworks/machine/driver/swarm"
 	"github.com/poddworks/machine/lib/cert"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
 
 	"encoding/json"
@@ -17,7 +16,7 @@ import (
 	"io/ioutil"
 	"os"
 	path "path/filepath"
-	"strings"
+	"regexp"
 	"text/template"
 )
 
@@ -25,33 +24,27 @@ func ListInstanceCommand() cli.Command {
 	return cli.Command{
 		Name:  "ls",
 		Usage: "List cached Docker Engine instance info",
-		Flags: []cli.Flag{},
+		Flags: []cli.Flag{
+			cli.BoolFlag{Name: "quiet, q", Usage: "List instances without fancy tabs"},
+			cli.StringSliceFlag{Name: "filter, f", Usage: "Filter by instance name prefix"},
+		},
 		Action: func(c *cli.Context) error {
 			var (
-				// Prepare table render
-				table = tablewriter.NewWriter(os.Stdout)
+				quiet = c.Bool("quiet")
+
+				filters = c.StringSlice("filter")
 			)
 
-			table.SetBorder(false)
-
-			table.SetHeader([]string{"", "Name", "DockerHost", "Driver", "State"})
-			for name, inst := range mach.InstList {
-				var dockerhost = inst.DockerHostName()
-				var oneRow = []string{
-					"",          // Current
-					name,        // Name
-					inst.Host,   // DockerHost
-					inst.Driver, // Driver
-					inst.State,  // State
-				}
-				if strings.Contains(os.Getenv("DOCKER_HOST"), dockerhost) {
-					oneRow[0] = "*"
-				}
-				table.Append(oneRow)
+			var matchers []*regexp.Regexp
+			for _, filter := range filters {
+				matchers = append(matchers, regexp.MustCompile(fmt.Sprintf("%s*", filter)))
 			}
 
-			table.Render()
-
+			if quiet {
+				listQuiet(matchers)
+			} else {
+				listTable(matchers)
+			}
 			return nil
 		},
 	}
