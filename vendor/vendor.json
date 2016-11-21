@@ -3,6 +3,10 @@
 	"ignore": "test",
 	"package": [
 		{
+			"path": "cli",
+			"revision": ""
+		},
+		{
 			"checksumSHA1": "2avCvSn0XonfApKKuTMyiQmk7s0=",
 			"path": "github.com/Sirupsen/logrus",
 			"revision": "3ec0642a7fb6488f65b06f9040adc67e3990296a",
@@ -305,10 +309,10 @@
 			"revisionTime": "2016-10-02T05:25:12Z"
 		},
 		{
-			"checksumSHA1": "rEIS5EfbhPRBasakArGCeOWwY8c=",
+			"checksumSHA1": "j+CXOooI5VyVEhKPTJkuL/GHPE0=",
 			"path": "github.com/urfave/cli",
-			"revision": "55f715e28c46073d0e217e2ce8eb46b0b45e3db6",
-			"revisionTime": "2016-10-06T03:53:53Z"
+			"revision": "b6061c464d493dd94985211595687c862a0dd0bc",
+			"revisionTime": "2016-11-19T19:05:28Z"
 		},
 		{
 			"checksumSHA1": "h+pFYiRHBogczS8/F1NoN3Ata44=",
