@@ -74,19 +74,6 @@ func InstanceCommand(cmd, act string) cli.Command {
 		Usage:           fmt.Sprintf("%s instances", act),
 		SkipFlagParsing: true,
 		Action: func(c *cli.Context) error {
-			var (
-				args = c.Args()
-
-				lastArg = len(args) - 1
-			)
-
-			if args.Get(lastArg) == "--generate-bash-completion" {
-				for name, _ := range mach.InstList {
-					fmt.Fprint(c.App.Writer, name, " ")
-				}
-				return nil
-			}
-
 			for _, name := range c.Args() {
 				info, ok := mach.InstList[name]
 				if !ok {

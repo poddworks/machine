@@ -12,6 +12,9 @@ _machine_bash_autocomplete() {
     use)
         COMPREPLY=( $(compgen -W "$(machine ls -q)" -- "${cur}") )
         ;;
+    reboot|rm|start|stop)
+        COMPREPLY=( $(compgen -W "$(machine ls -q)" -- "${cur}") )
+        ;;
     *)
         opts=$( ${COMP_WORDS[@]:0:$COMP_CWORD} --generate-bash-completion )
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
