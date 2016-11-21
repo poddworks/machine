@@ -25,49 +25,29 @@ func ListInstanceCommand() cli.Command {
 	return cli.Command{
 		Name:  "ls",
 		Usage: "List cached Docker Engine instance info",
-		Flags: []cli.Flag{
-			cli.BoolFlag{Name: "current", Usage: "Show only the enabled Docker Engine"},
-		},
+		Flags: []cli.Flag{},
 		Action: func(c *cli.Context) error {
 			var (
-				current = c.Bool("current")
-
 				// Prepare table render
 				table = tablewriter.NewWriter(os.Stdout)
 			)
 
 			table.SetBorder(false)
 
-			if current {
-				table.SetHeader([]string{"Name", "DockerHost", "Driver", "State"})
-				for name, inst := range mach.InstList {
-					var dockerhost = inst.DockerHostName()
-					var oneRow = []string{
-						name,        // Name
-						inst.Host,   // DockerHost
-						inst.Driver, // Driver
-						inst.State,  // State
-					}
-					if strings.Contains(os.Getenv("DOCKER_HOST"), dockerhost) {
-						table.Append(oneRow)
-					}
+			table.SetHeader([]string{"", "Name", "DockerHost", "Driver", "State"})
+			for name, inst := range mach.InstList {
+				var dockerhost = inst.DockerHostName()
+				var oneRow = []string{
+					"",          // Current
+					name,        // Name
+					inst.Host,   // DockerHost
+					inst.Driver, // Driver
+					inst.State,  // State
 				}
-			} else {
-				table.SetHeader([]string{"", "Name", "DockerHost", "Driver", "State"})
-				for name, inst := range mach.InstList {
-					var dockerhost = inst.DockerHostName()
-					var oneRow = []string{
-						"",          // Current
-						name,        // Name
-						inst.Host,   // DockerHost
-						inst.Driver, // Driver
-						inst.State,  // State
-					}
-					if strings.Contains(os.Getenv("DOCKER_HOST"), dockerhost) {
-						oneRow[0] = "*"
-					}
-					table.Append(oneRow)
+				if strings.Contains(os.Getenv("DOCKER_HOST"), dockerhost) {
+					oneRow[0] = "*"
 				}
+				table.Append(oneRow)
 			}
 
 			table.Render()
