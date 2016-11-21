@@ -1,20 +1,16 @@
 #!/bin/bash
 
-: ${PROG:=$(basename ${BASH_SOURCE})}
-
-_cli_bash_autocomplete() {
+_machine_bash_autocomplete() {
     local cur opts base
     cur="${COMP_WORDS[COMP_CWORD]}"
     last=${COMP_WORDS[-2]}
-    lastArg=${COMP_WORDS[-1]}
     case ${last} in
-    --*)
+    -*|script|playbook)
         compopt -o default
         COMPREPLY=()
         ;;
-    script|playbook)
-        compopt -o default
-        COMPREPLY=()
+    use)
+        COMPREPLY=( $(compgen -W "$(machine ls -q)" -- "${cur}") )
         ;;
     *)
         opts=$( ${COMP_WORDS[@]:0:$COMP_CWORD} --generate-bash-completion )
@@ -24,4 +20,4 @@ _cli_bash_autocomplete() {
     return 0
 }
 
-complete -F _cli_bash_autocomplete $PROG
+complete -F _machine_bash_autocomplete machine
