@@ -1,5 +1,3 @@
-#!/bin/bash
-
 _machine_bash_autocomplete() {
     local cur opts base
     cur="${COMP_WORDS[COMP_CWORD]}"

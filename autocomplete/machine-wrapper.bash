@@ -1,5 +1,3 @@
-#!/bin/bash
-
 : ${MACHINE_WRAPPED:=true}
 
 __machine_wrapper() {
