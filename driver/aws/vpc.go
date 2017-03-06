@@ -97,7 +97,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -112,7 +112,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -122,7 +122,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("tcp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -132,7 +132,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("udp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -142,7 +142,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("tcp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -152,7 +152,7 @@ func vpc_newDockerMachineSecutiryGroup(profile *VPCProfile) (groupId *string, er
 				IpProtocol: aws.String("udp"),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
@@ -196,7 +196,7 @@ func vpc_newSSHSecutiryGroup(profile *VPCProfile) (groupId *string, err error) {
 				},
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{
 					{
-						GroupName: aws.String("docker-machine"),
+						GroupId: groupId,
 					},
 				},
 			},
