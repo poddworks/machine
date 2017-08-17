@@ -29,7 +29,7 @@ func init() {
 
 func main() {
 	app := cli.NewApp()
-	app.Version = "1.0.0"
+	app.Version = "1.2.0"
 	app.Name = "machine"
 	app.Usage = "Swiss Army knife for DevOps"
 	app.EnableBashCompletion = true
