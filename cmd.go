@@ -37,7 +37,7 @@ func ListInstanceCommand() cli.Command {
 
 			var matchers []*regexp.Regexp
 			for _, filter := range filters {
-				matchers = append(matchers, regexp.MustCompile(fmt.Sprintf("%s*", filter)))
+				matchers = append(matchers, regexp.MustCompile(fmt.Sprintf(".*%s.*", filter)))
 			}
 
 			if quiet {
