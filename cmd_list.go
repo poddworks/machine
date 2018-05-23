@@ -44,18 +44,19 @@ func listTable(matchers []*regexp.Regexp) {
 
 	table.SetBorder(false)
 
-	table.SetHeader([]string{"", "Name", "DockerHost", "Driver", "State"})
+	table.SetHeader([]string{"", "Name", "DockerHost", "AltHost", "Driver", "State"})
 	for name, inst := range mach.InstList {
 		if !match(name, matchers) {
 			continue
 		}
 		var dockerhost = inst.DockerHostName()
 		var oneRow = []string{
-			"",          // Current
-			name,        // Name
-			inst.Host,   // DockerHost
-			inst.Driver, // Driver
-			inst.State,  // State
+			"",                               // Current
+			name,                             // Name
+			inst.Host,                        // DockerHost
+			strings.Join(inst.AltHost, ", "), // DockerHost
+			inst.Driver,                      // Driver
+			inst.State,                       // State
 		}
 		if strings.Contains(os.Getenv("DOCKER_HOST"), dockerhost) {
 			oneRow[0] = "*"
